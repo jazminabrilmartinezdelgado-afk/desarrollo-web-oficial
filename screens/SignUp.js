@@ -1,0 +1,357 @@
+import React, { useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Image, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { FontAwesome } from '@expo/vector-icons';
+import { auth } from '../src/config/firebaseConfig';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+
+export default function SignUp({ navigation }) {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [successModalVisible, setSuccessModalVisible] = useState(false);
+
+  const handleSignUp = async () => {
+    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password || !confirmPassword) {
+      Alert.alert("Error", "Todos los campos son obligatorios.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Las contraseñas no coinciden.");
+      return;
+    }
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/;
+    if (!passwordRegex.test(password)) {
+      Alert.alert(
+        "Requisito de seguridad",
+        "La contraseña debe tener al menos 6 caracteres, incluyendo una letra mayúscula, una minúscula y un número."
+      );
+      return;
+    }
+
+    let credential;
+    try {
+      credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+    } catch (error) {
+      console.error('Error de registro:', error.code, error.message);
+      let errorMessage = "Hubo un problema al registrar el usuario.";
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          errorMessage = "El correo electrónico ya está en uso.";
+          break;
+        case 'auth/invalid-email':
+          errorMessage = "El formato del correo electrónico no es válido.";
+          break;
+        case 'auth/weak-password':
+          errorMessage = "La contraseña es demasiado débil.";
+          break;
+        case 'auth/network-request-failed':
+          errorMessage = "Error de conexión, por favor intenta más tarde.";
+          break;
+        case 'auth/invalid-api-key':
+          errorMessage = "La clave API de Firebase no es válida. Revisa el archivo .env.";
+          break;
+      }
+      Alert.alert("Error", `${errorMessage}\n\nCódigo: ${error.code ?? 'desconocido'}`);
+      return;
+    }
+
+    try {
+      await updateProfile(credential.user, { displayName: `${firstName.trim()} ${lastName.trim()}` });
+      setSuccessModalVisible(true);
+    } catch (error) {
+      Alert.alert("Cuenta creada", "La cuenta se creó, pero no se pudo guardar el nombre.");
+      setSuccessModalVisible(true);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+      style={styles.safeContainer}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        <View style={styles.card}>
+          <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+          <Text style={styles.title1}>Agroquímica del Valle</Text>
+          <Text style={styles.title}>Regístrate</Text>
+
+          <Text style={styles.label}>Nombre</Text>
+          <View style={styles.inputContainer}>
+            <FontAwesome name="user" size={20} color="#1b4d3e" style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Ingrese su nombre"
+              placeholderTextColor="#9CA3AF"
+              value={firstName}
+              onChangeText={setFirstName}
+              autoComplete="given-name"
+              textContentType="givenName"
+            />
+          </View>
+
+          <Text style={styles.label}>Apellido</Text>
+          <View style={styles.inputContainer}>
+            <FontAwesome name="user" size={20} color="#1b4d3e" style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Ingrese su apellido"
+              placeholderTextColor="#9CA3AF"
+              value={lastName}
+              onChangeText={setLastName}
+              autoComplete="family-name"
+              textContentType="familyName"
+            />
+          </View>
+
+          <Text style={styles.label}>Correo</Text>
+          <View style={styles.inputContainer}>
+            <FontAwesome name="envelope" size={20} color="#1b4d3e" style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Ingrese su correo"
+              placeholderTextColor="#9CA3AF"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              textContentType="emailAddress"
+            />
+          </View>
+
+          <Text style={styles.label}>Contraseña</Text>
+          <View style={styles.inputContainer}>
+            <FontAwesome name="lock" size={20} color="#1b4d3e" style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Mín. 6 chars (Mayús, minús, número)"
+              placeholderTextColor="#9CA3AF"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+              autoComplete="new-password"
+              textContentType="newPassword"
+            />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              <FontAwesome name={showPassword ? "eye-slash" : "eye"} size={20} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.label}>Confirmar Contraseña</Text>
+          <View style={styles.inputContainer}>
+            <FontAwesome name="lock" size={20} color="#1b4d3e" style={styles.icon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Confirme su contraseña"
+              placeholderTextColor="#9CA3AF"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              secureTextEntry={!showConfirmPassword}
+              autoComplete="new-password"
+              textContentType="newPassword"
+            />
+            <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+              <FontAwesome name={showConfirmPassword ? "eye-slash" : "eye"} size={20} color="#6B7280" />
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={styles.button} onPress={handleSignUp}>
+            <Text style={styles.buttonText}>Registrarse</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.loginLinkContainer}>
+            <Text style={styles.signUpText}>¿Ya tienes cuenta? Inicia sesión</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      {/* MODAL MODERNO DE REGISTRO EXITOSO */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={successModalVisible}
+        onRequestClose={() => setSuccessModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.checkCircle}>
+              <FontAwesome name="check" size={40} color="#FFFFFF" />
+            </View>
+            <Text style={styles.modalTitle}>Registro exitoso</Text>
+            <Text style={styles.modalSubtitle}>
+              Tu cuenta se ha creado correctamente.{'\n'}Puedes iniciar sesión ahora.
+            </Text>
+            <TouchableOpacity 
+              style={styles.modalButton} 
+              onPress={() => {
+                setSuccessModalVisible(false);
+                navigation.navigate('Login');
+              }}
+            >
+              <Text style={styles.modalButtonText}>Ir a Iniciar sesión →</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeContainer: {
+    flex: 1,
+    backgroundColor: '#F3F4F6',
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+    minHeight: '100%',
+  },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 32,
+    width: '100%',
+    maxWidth: 500,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  logo: {
+    width: 75,
+    height: 75,
+    marginBottom: 8,
+  },
+  title1: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#1b4d3e',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  label: {
+    alignSelf: 'flex-start',
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#1b4d3e',
+    marginTop: 8,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1.5,
+    borderColor: '#1b4d3e',
+    marginBottom: 14,
+    width: '100%',
+    paddingBottom: 4,
+  },
+  icon: {
+    marginRight: 10,
+  },
+  input: {
+    flex: 1,
+    height: 42,
+    color: '#1F2937',
+    fontSize: 15,
+  },
+  button: {
+    backgroundColor: '#1b4d3e',
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 18,
+    width: '100%',
+    alignItems: 'center',
+    shadowColor: '#1b4d3e',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  loginLinkContainer: {
+    marginTop: 20,
+    padding: 4,
+  },
+  signUpText: {
+    color: '#1b4d3e',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  checkCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#1b4d3e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#111827',
+    marginBottom: 10,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 25,
+    lineHeight: 20,
+  },
+  modalButton: {
+    backgroundColor: '#1b4d3e',
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 10,
+    width: '100%',
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+});
