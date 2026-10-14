@@ -14,17 +14,63 @@ export default function SignUp({ navigation }) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [successModalVisible, setSuccessModalVisible] = useState(false);
 
+  // Función para evaluar la fortaleza de la contraseña
+  const getPasswordStrength = (pass) => {
+    if (!pass) return { score: 0, label: '', color: '#E5E7EB', width: '0%' };
+    
+    let score = 0;
+    if (pass.length >= 6) score += 1;
+    if (pass.length >= 8) score += 1;
+    if (/[a-z]/.test(pass) && /[A-Z]/.test(pass)) score += 1;
+    if (/\d/.test(pass)) score += 1;
+    if (/[^A-Za-z0-9]/.test(pass)) score += 1;
+
+    if (score <= 2) {
+      return { score, label: 'Débil', color: '#EF4444', width: '33%' };
+    } else if (score <= 4) {
+      return { score, label: 'Media', color: '#F59E0B', width: '66%' };
+    } else {
+      return { score, label: 'Fuerte', color: '#10B981', width: '100%' };
+    }
+  };
+
+  const passwordStrength = getPasswordStrength(password);
+
   const handleSignUp = async () => {
+    // 1. Validar campos obligatorios
     if (!firstName.trim() || !lastName.trim() || !email.trim() || !password || !confirmPassword) {
       Alert.alert("Error", "Todos los campos son obligatorios.");
       return;
     }
 
+    // 2. Validar que Nombre y Apellido solo contengan letras y espacios (sin números ni caracteres especiales)
+    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
+    if (!nameRegex.test(firstName.trim())) {
+      Alert.alert("Nombre inválido", "El campo nombre solo puede contener letras y espacios.");
+      return;
+    }
+    if (!nameRegex.test(lastName.trim())) {
+      Alert.alert("Apellido inválido", "El campo apellido solo puede contener letras y espacios.");
+      return;
+    }
+
+    // 3. Validar que el correo termine en @gmail.com o @hotmail.com
+    const allowedEmailRegex = /^[a-zA-Z0-9._%+-]+@(gmail\.com|hotmail\.com)$/i;
+    if (!allowedEmailRegex.test(email.trim())) {
+      Alert.alert(
+        "Correo no permitido",
+        "El correo electrónico debe ser una dirección válida de @gmail.com o @hotmail.com."
+      );
+      return;
+    }
+
+    // 4. Validar que las contraseñas coincidan
     if (password !== confirmPassword) {
       Alert.alert("Error", "Las contraseñas no coinciden.");
       return;
     }
 
+    // 5. Validar requisito estricto de seguridad de la contraseña
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/;
     if (!passwordRegex.test(password)) {
       Alert.alert(
@@ -86,7 +132,7 @@ export default function SignUp({ navigation }) {
             <FontAwesome name="user" size={20} color="#1b4d3e" style={styles.icon} />
             <TextInput
               style={styles.input}
-              placeholder="Ingrese su nombre"
+              placeholder="Ingrese su nombre (solo letras)"
               placeholderTextColor="#9CA3AF"
               value={firstName}
               onChangeText={setFirstName}
@@ -100,7 +146,7 @@ export default function SignUp({ navigation }) {
             <FontAwesome name="user" size={20} color="#1b4d3e" style={styles.icon} />
             <TextInput
               style={styles.input}
-              placeholder="Ingrese su apellido"
+              placeholder="Ingrese su apellido (solo letras)"
               placeholderTextColor="#9CA3AF"
               value={lastName}
               onChangeText={setLastName}
@@ -109,12 +155,12 @@ export default function SignUp({ navigation }) {
             />
           </View>
 
-          <Text style={styles.label}>Correo</Text>
+          <Text style={styles.label}>Correo (@gmail.com / @hotmail.com)</Text>
           <View style={styles.inputContainer}>
             <FontAwesome name="envelope" size={20} color="#1b4d3e" style={styles.icon} />
             <TextInput
               style={styles.input}
-              placeholder="Ingrese su correo"
+              placeholder="ejemplo@gmail.com o @hotmail.com"
               placeholderTextColor="#9CA3AF"
               value={email}
               onChangeText={setEmail}
@@ -142,6 +188,26 @@ export default function SignUp({ navigation }) {
               <FontAwesome name={showPassword ? "eye-slash" : "eye"} size={20} color="#6B7280" />
             </TouchableOpacity>
           </View>
+
+          {/* INDICADOR / MEDIDOR DE SEGURIDAD DE CONTRASEÑA */}
+          {password.length > 0 && (
+            <View style={styles.strengthMeterContainer}>
+              <View style={styles.strengthHeader}>
+                <Text style={styles.strengthText}>Fortaleza de la contraseña:</Text>
+                <Text style={[styles.strengthLabel, { color: passwordStrength.color }]}>
+                  {passwordStrength.label}
+                </Text>
+              </View>
+              <View style={styles.strengthBarBackground}>
+                <View 
+                  style={[
+                    styles.strengthBarFill, 
+                    { width: passwordStrength.width, backgroundColor: passwordStrength.color }
+                  ]} 
+                />
+              </View>
+            </View>
+          )}
 
           <Text style={styles.label}>Confirmar Contraseña</Text>
           <View style={styles.inputContainer}>
@@ -271,6 +337,35 @@ const styles = StyleSheet.create({
     height: 42,
     color: '#1F2937',
     fontSize: 15,
+  },
+  // ESTILOS PARA EL MEDIDOR DE SEGURIDAD
+  strengthMeterContainer: {
+    width: '100%',
+    marginBottom: 12,
+    marginTop: -4,
+  },
+  strengthHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  strengthText: {
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  strengthLabel: {
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  strengthBarBackground: {
+    height: 6,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  strengthBarFill: {
+    height: '100%',
+    borderRadius: 3,
   },
   button: {
     backgroundColor: '#1b4d3e',
