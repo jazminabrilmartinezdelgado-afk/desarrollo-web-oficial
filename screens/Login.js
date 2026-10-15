@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   View, 
   Text, 
@@ -7,11 +7,13 @@ import {
   StyleSheet, 
   Alert, 
   Image, 
+  ImageBackground,
   Modal, 
   ScrollView, 
   KeyboardAvoidingView, 
   Platform,
-  Animated
+  Animated,
+  Pressable
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
@@ -31,12 +33,51 @@ export default function Login({ navigation }) {
   // Cartel de error estético
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Animaciones para Modales y Carteles
+  // ---------- ANIMACIONES ----------
+  // 1. Animación de entrada de la tarjeta
+  const cardScale = useRef(new Animated.Value(0.92)).current;
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+
+  // 2. Animación del botón principal al presionar
+  const buttonScale = useRef(new Animated.Value(1)).current;
+
+  // 3. Animación de errores y modales
   const errorFadeAnim = useRef(new Animated.Value(0)).current;
   const modalScaleAnim = useRef(new Animated.Value(0.8)).current;
   const modalFadeAnim = useRef(new Animated.Value(0)).current;
 
-  // Función para disparar la animación del cartel de error
+  useEffect(() => {
+    // Disparar animación de entrada del formulario al cargar
+    Animated.parallel([
+      Animated.timing(cardOpacity, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(cardScale, {
+        toValue: 1,
+        friction: 7,
+        tension: 40,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
+
+  const onPressInButton = () => {
+    Animated.spring(buttonScale, {
+      toValue: 0.96,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const onPressOutButton = () => {
+    Animated.spring(buttonScale, {
+      toValue: 1,
+      friction: 5,
+      useNativeDriver: true,
+    }).start();
+  };
+
   const triggerErrorAnimation = () => {
     errorFadeAnim.setValue(0);
     Animated.timing(errorFadeAnim, {
@@ -46,7 +87,6 @@ export default function Login({ navigation }) {
     }).start();
   };
 
-  // Función para disparar la animación del modal de bienvenida
   const triggerWelcomeModalAnimation = () => {
     modalScaleAnim.setValue(0.8);
     modalFadeAnim.setValue(0);
@@ -66,7 +106,6 @@ export default function Login({ navigation }) {
   };
 
   const handleLogin = async () => {
-    // Limpiar mensaje de error previo al reintentar
     setErrorMessage('');
 
     if (!email.trim() || !password) {
@@ -86,23 +125,18 @@ export default function Login({ navigation }) {
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
       
-      // Obtiene el nombre registrado en Firebase Auth (displayName) o extrae el nombre del correo
       const displayName = user.displayName || user.email.split('@')[0];
       setUserName(displayName);
       
-      // Muestra el modal flotante de bienvenida con el nombre
       setWelcomeModalVisible(true);
       triggerWelcomeModalAnimation();
     } catch (error) {
       console.error('Error de inicio de sesión:', error.code, error.message);
-      
-      // Cartel estético de error solicitado
       setErrorMessage("Acceso inválido. Por favor, inténtelo otra vez.");
       triggerErrorAnimation();
     }
   };
 
-  // Función para enviar correo de recuperación de contraseña
   const handleForgotPassword = async () => {
     if (!forgotEmail.trim()) {
       Alert.alert("Campo vacío", "Por favor ingrese su correo electrónico para recuperar la contraseña.");
@@ -135,79 +169,113 @@ export default function Login({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
       style={styles.safeContainer}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.card}>
-          <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
-          <Text style={styles.title1}>Agroquímica del Valle</Text>
-          <Text style={styles.title}>Iniciar sesión</Text>
-
-          {/* CARTEL ESTÉTICO MODERNO DE ERROR DE LOGIN CON ANIMACIÓN */}
-          {errorMessage !== '' && (
-            <Animated.View style={[styles.errorBanner, { opacity: errorFadeAnim }]}>
-              <FontAwesome name="exclamation-circle" size={20} color="#DC2626" style={{ marginRight: 8 }} />
-              <Text style={styles.errorBannerText}>{errorMessage}</Text>
-            </Animated.View>
-          )}
-
-          <Text style={styles.label}>Correo</Text>
-          <View style={styles.inputContainer}>
-            <FontAwesome name="envelope" size={20} color="#1b4d3e" style={styles.icon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Ingrese su correo"
-              placeholderTextColor="#9CA3AF"
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                if (errorMessage) setErrorMessage('');
-              }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoComplete="email"
-              textContentType="emailAddress"
-            />
-          </View>
-
-          <Text style={styles.label}>Contraseña</Text>
-          <View style={styles.inputContainer}>
-            <FontAwesome name="lock" size={20} color="#1b4d3e" style={styles.icon} />
-            <TextInput
-              style={styles.input}
-              placeholder="Ingrese su contraseña"
-              placeholderTextColor="#9CA3AF"
-              value={password}
-              onChangeText={(text) => {
-                setPassword(text);
-                if (errorMessage) setErrorMessage('');
-              }}
-              secureTextEntry={!showPassword}
-              autoComplete="password"
-              textContentType="password"
-            />
-            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              <FontAwesome name={showPassword ? "eye-slash" : "eye"} size={20} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-
-          {/* ENLACE DE OLVIDÉ MI CONTRASEÑA */}
-          <TouchableOpacity 
-            style={styles.forgotContainer} 
-            onPress={() => setForgotModalVisible(true)}
+      <ImageBackground
+          source={require('../assets/fondo.png')}
+          style={styles.backgroundImage}
+          resizeMode="cover"
           >
-            <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
-          </TouchableOpacity>
+            
+        <View style={styles.overlay}>
+          <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+            
+            {/* TARJETA ANIMADA */}
+            <Animated.View 
+              style={[
+                styles.card, 
+                { 
+                  opacity: cardOpacity, 
+                  transform: [{ scale: cardScale }] 
+                }
+              ]}
+            >
+              <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
+              <Text style={styles.title1}>Agroquímica del Valle</Text>
+              <Text style={styles.title}>Iniciar sesión</Text>
 
-          <TouchableOpacity style={styles.button} onPress={handleLogin}>
-            <Text style={styles.buttonText}>Ingresar</Text>
-          </TouchableOpacity>
+              {errorMessage !== '' && (
+                <Animated.View style={[styles.errorBanner, { opacity: errorFadeAnim }]}>
+                  <FontAwesome name="exclamation-circle" size={20} color="#DC2626" style={{ marginRight: 8 }} />
+                  <Text style={styles.errorBannerText}>{errorMessage}</Text>
+                </Animated.View>
+              )}
 
-          <TouchableOpacity onPress={() => navigation.navigate('SignUp')} style={styles.signUpLinkContainer}>
-            <Text style={styles.signUpText}>¿No tienes cuenta aún? Regístrate</Text>
-          </TouchableOpacity>
+              <Text style={styles.label}>Correo</Text>
+              <View style={styles.inputContainer}>
+                <FontAwesome name="envelope" size={20} color="#1b4d3e" style={styles.icon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ingrese su correo"
+                  placeholderTextColor="#9CA3AF"
+                  value={email}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    if (errorMessage) setErrorMessage('');
+                  }}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  textContentType="emailAddress"
+                />
+              </View>
+
+              <Text style={styles.label}>Contraseña</Text>
+              <View style={styles.inputContainer}>
+                <FontAwesome name="lock" size={20} color="#1b4d3e" style={styles.icon} />
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ingrese su contraseña"
+                  placeholderTextColor="#9CA3AF"
+                  value={password}
+                  onChangeText={(text) => {
+                    setPassword(text);
+                    if (errorMessage) setErrorMessage('');
+                  }}
+                  secureTextEntry={!showPassword}
+                  autoComplete="password"
+                  textContentType="password"
+                />
+                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+                  <FontAwesome name={showPassword ? "eye-slash" : "eye"} size={20} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity 
+                style={styles.forgotContainer} 
+                onPress={() => setForgotModalVisible(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
+              </TouchableOpacity>
+
+              {/* BOTÓN CON ANIMACIÓN DE COMPRESIÓN TÁCTIL */}
+              <Animated.View style={{ width: '100%', transform: [{ scale: buttonScale }] }}>
+                <Pressable
+                  style={({ hovered, pressed }) => [
+                    styles.button,
+                    hovered && styles.buttonHover,
+                    pressed && styles.buttonPressed
+                  ]}
+                  onPressIn={onPressInButton}
+                  onPressOut={onPressOutButton}
+                  onPress={handleLogin}
+                >
+                  <Text style={styles.buttonText}>Ingresar</Text>
+                </Pressable>
+              </Animated.View>
+
+              <TouchableOpacity 
+                onPress={() => navigation.navigate('SignUp')} 
+                style={styles.signUpLinkContainer}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.signUpText}>¿No tienes cuenta aún? Regístrate</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          </ScrollView>
         </View>
-      </ScrollView>
+      </ImageBackground>
 
-      {/* MODAL MODERNO ANIMADO DE BIENVENIDA CON NOMBRE DE USUARIO */}
+      {/* MODAL MODERNO ANIMADO DE BIENVENIDA */}
       <Modal
         animationType="none"
         transparent={true}
@@ -236,15 +304,18 @@ export default function Login({ navigation }) {
               Has ingresado con éxito al sistema corporativo de Agroquímica del Valle.
             </Text>
 
-            <TouchableOpacity 
-              style={styles.modalButton} 
+            <Pressable 
+              style={({ hovered }) => [
+                styles.modalButton,
+                hovered && styles.buttonHover
+              ]} 
               onPress={() => {
                 setWelcomeModalVisible(false);
                 navigation.navigate('Home'); 
               }}
             >
               <Text style={styles.modalButtonText}>Continuar al Panel →</Text>
-            </TouchableOpacity>
+            </Pressable>
           </Animated.View>
         </View>
       </Modal>
@@ -302,7 +373,16 @@ export default function Login({ navigation }) {
 const styles = StyleSheet.create({
   safeContainer: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+  },
+  backgroundImage: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(27, 77, 62, 0.65)',
+    justifyContent: 'center',
   },
   scrollContainer: {
     flexGrow: 1,
@@ -319,10 +399,12 @@ const styles = StyleSheet.create({
     maxWidth: 500,
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 10,
+    transitionProperty: 'transform, box-shadow',
+    transitionDuration: '300ms',
   },
   logo: {
     width: 75,
@@ -407,6 +489,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 3,
+  },
+  buttonHover: {
+    backgroundColor: '#143c30',
+  },
+  buttonPressed: {
+    backgroundColor: '#0d2820',
   },
   buttonText: {
     color: '#FFFFFF',
