@@ -170,14 +170,7 @@ export default function SignUp({ navigation }) {
       console.error('No se pudo guardar el nombre:', error);
     }
 
-    // Firebase inicia sesión solo al registrar; cerramos sesión para que el usuario entre desde Login.
-    // Si tu app usa onAuthStateChanged para navegar, quita esta línea.
-    try {
-      await signOut(auth);
-    } catch (error) {
-      console.error('Error al cerrar sesión:', error);
-    }
-
+    
     setLoading(false);
     setSuccessModalVisible(true);
   };
