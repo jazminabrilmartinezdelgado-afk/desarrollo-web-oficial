@@ -2,7 +2,49 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Image, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { auth } from '../src/config/firebaseConfig';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { createUserWithEmailAndPassword, updateProfile, signOut } from 'firebase/auth';
+
+// ---------- Constantes de validación (cámbialas aquí y se aplican en todo el archivo) ----------
+const MIN_PASSWORD = 8;   // puedes poner 6 si lo prefieres
+const MAX_PASSWORD = 64;
+const NAME_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+(?:\s[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+)*$/; // solo letras, espacios simples entre palabras
+const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@(gmail\.com|hotmail\.com)$/i;
+const GENERIC_EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/; // formato general de correo
+
+// Devuelve el mensaje de error del correo, o '' si es válido
+const getEmailError = (value) => {
+  const em = value.trim();
+  if (!em) return 'El correo es obligatorio.';
+  if (!GENERIC_EMAIL_REGEX.test(em)) {
+    return 'El formato del correo no es válido. Ejemplo: nombre@gmail.com';
+  }
+  if (!EMAIL_REGEX.test(em)) return 'Use un correo @gmail.com o @hotmail.com.';
+  return '';
+};
+
+// Regex de la contraseña. Cada (?=...) es una condición que debe cumplirse:
+//   ^                    -> inicio del texto
+//   (?=.*[a-z])          -> al menos una letra minúscula
+//   (?=.*[A-Z])          -> al menos una letra mayúscula
+//   (?=.*\d)             -> al menos un número
+//   (?=.*[^A-Za-z0-9\s]) -> al menos un carácter especial (@, #, $, !, _, etc.)
+//   \S{MIN,MAX}          -> entre MIN y MAX caracteres, sin espacios
+//   $                    -> fin del texto
+const PASSWORD_REGEX = new RegExp(
+  `^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9\\s])\\S{${MIN_PASSWORD},${MAX_PASSWORD}}$`
+);
+
+// Quita todo lo que no sea letra o espacio mientras el usuario escribe
+const onlyLetters = (text) => text.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]/g, '');
+
+// Alert.alert no funciona en web, así que usamos window.alert allí
+const showMessage = (title, message) => {
+  if (Platform.OS === 'web') {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
 
 export default function SignUp({ navigation }) {
   const [firstName, setFirstName] = useState('');
@@ -13,183 +55,250 @@ export default function SignUp({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [successModalVisible, setSuccessModalVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState({});
 
-  // Función para evaluar la fortaleza de la contraseña
+  // Evalúa la fortaleza de la contraseña
   const getPasswordStrength = (pass) => {
     if (!pass) return { score: 0, label: '', color: '#E5E7EB', width: '0%' };
-    
+
     let score = 0;
     if (pass.length >= 6) score += 1;
-    if (pass.length >= 8) score += 1;
+    if (pass.length >= MIN_PASSWORD) score += 1;
     if (/[a-z]/.test(pass) && /[A-Z]/.test(pass)) score += 1;
     if (/\d/.test(pass)) score += 1;
     if (/[^A-Za-z0-9]/.test(pass)) score += 1;
+
+    // Si no cumple los requisitos mínimos, nunca pasa de "Débil"
+    if (!PASSWORD_REGEX.test(pass) && score > 2) score = 2;
 
     if (score <= 2) {
       return { score, label: 'Débil', color: '#EF4444', width: '33%' };
     } else if (score <= 4) {
       return { score, label: 'Media', color: '#F59E0B', width: '66%' };
-    } else {
-      return { score, label: 'Fuerte', color: '#10B981', width: '100%' };
     }
+    return { score, label: 'Fuerte', color: '#10B981', width: '100%' };
   };
 
   const passwordStrength = getPasswordStrength(password);
 
+  // Valida todos los campos y guarda los mensajes de error por campo
+  const validate = () => {
+    const e = {};
+    const fn = firstName.trim();
+    const ln = lastName.trim();
+    const em = email.trim();
+
+    if (!fn) e.firstName = 'El nombre es obligatorio.';
+    else if (fn.length < 2) e.firstName = 'El nombre debe tener al menos 2 letras.';
+    else if (!NAME_REGEX.test(fn)) e.firstName = 'El nombre solo puede contener letras y espacios.';
+
+    if (!ln) e.lastName = 'El apellido es obligatorio.';
+    else if (ln.length < 2) e.lastName = 'El apellido debe tener al menos 2 letras.';
+    else if (!NAME_REGEX.test(ln)) e.lastName = 'El apellido solo puede contener letras y espacios.';
+
+    const emailError = getEmailError(em);
+    if (emailError) e.email = emailError;
+
+    if (!password) e.password = 'La contraseña es obligatoria.';
+    else if (!PASSWORD_REGEX.test(password)) {
+      e.password = `Mínimo ${MIN_PASSWORD} caracteres, con mayúscula, minúscula, número y un carácter especial (@, #, $, !...). Sin espacios.`;
+    }
+
+    if (!confirmPassword) e.confirmPassword = 'Confirme su contraseña.';
+    else if (password !== confirmPassword) e.confirmPassword = 'Las contraseñas no coinciden.';
+
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  // Borra el error de un campo cuando el usuario vuelve a escribir en él
+  const clearError = (field) => {
+    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: undefined }));
+  };
+
   const handleSignUp = async () => {
-    // 1. Validar campos obligatorios
-    if (!firstName.trim() || !lastName.trim() || !email.trim() || !password || !confirmPassword) {
-      Alert.alert("Error", "Todos los campos son obligatorios.");
-      return;
-    }
+    if (loading) return; // evita doble envío
+    if (!validate()) return;
 
-    // 2. Validar que Nombre y Apellido solo contengan letras y espacios (sin números ni caracteres especiales)
-    const nameRegex = /^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/;
-    if (!nameRegex.test(firstName.trim())) {
-      Alert.alert("Nombre inválido", "El campo nombre solo puede contener letras y espacios.");
-      return;
-    }
-    if (!nameRegex.test(lastName.trim())) {
-      Alert.alert("Apellido inválido", "El campo apellido solo puede contener letras y espacios.");
-      return;
-    }
-
-    // 3. Validar que el correo termine en @gmail.com o @hotmail.com
-    const allowedEmailRegex = /^[a-zA-Z0-9._%+-]+@(gmail\.com|hotmail\.com)$/i;
-    if (!allowedEmailRegex.test(email.trim())) {
-      Alert.alert(
-        "Correo no permitido",
-        "El correo electrónico debe ser una dirección válida de @gmail.com o @hotmail.com."
-      );
-      return;
-    }
-
-    // 4. Validar que las contraseñas coincidan
-    if (password !== confirmPassword) {
-      Alert.alert("Error", "Las contraseñas no coinciden.");
-      return;
-    }
-
-    // 5. Validar requisito estricto de seguridad de la contraseña
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z\d]{6,}$/;
-    if (!passwordRegex.test(password)) {
-      Alert.alert(
-        "Requisito de seguridad",
-        "La contraseña debe tener al menos 6 caracteres, incluyendo una letra mayúscula, una minúscula y un número."
-      );
-      return;
-    }
+    setLoading(true);
+    const cleanEmail = email.trim().toLowerCase();
 
     let credential;
     try {
-      credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+      credential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
     } catch (error) {
       console.error('Error de registro:', error.code, error.message);
-      let errorMessage = "Hubo un problema al registrar el usuario.";
+      let errorMessage = 'Hubo un problema al registrar el usuario.';
       switch (error.code) {
         case 'auth/email-already-in-use':
-          errorMessage = "El correo electrónico ya está en uso.";
+          errorMessage = 'El correo electrónico ya está en uso.';
+          setErrors((prev) => ({ ...prev, email: errorMessage }));
           break;
         case 'auth/invalid-email':
-          errorMessage = "El formato del correo electrónico no es válido.";
+          errorMessage = 'El formato del correo electrónico no es válido.';
           break;
         case 'auth/weak-password':
-          errorMessage = "La contraseña es demasiado débil.";
+          errorMessage = 'La contraseña es demasiado débil.';
           break;
         case 'auth/network-request-failed':
-          errorMessage = "Error de conexión, por favor intenta más tarde.";
+          errorMessage = 'Error de conexión, por favor intenta más tarde.';
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.';
+          break;
+        case 'auth/operation-not-allowed':
+          errorMessage = 'El registro con correo no está habilitado en Firebase.';
           break;
         case 'auth/invalid-api-key':
-          errorMessage = "La clave API de Firebase no es válida. Revisa el archivo .env.";
+          errorMessage = 'La clave API de Firebase no es válida. Revisa el archivo .env.';
           break;
       }
-      Alert.alert("Error", `${errorMessage}\n\nCódigo: ${error.code ?? 'desconocido'}`);
+      showMessage('Error', `${errorMessage}\n\nCódigo: ${error.code ?? 'desconocido'}`);
+      setLoading(false);
       return;
     }
 
     try {
-      await updateProfile(credential.user, { displayName: `${firstName.trim()} ${lastName.trim()}` });
-      setSuccessModalVisible(true);
+      await updateProfile(credential.user, {
+        displayName: `${firstName.trim()} ${lastName.trim()}`,
+      });
     } catch (error) {
-      Alert.alert("Cuenta creada", "La cuenta se creó, pero no se pudo guardar el nombre.");
-      setSuccessModalVisible(true);
+      showMessage('Cuenta creada', 'La cuenta se creó, pero no se pudo guardar el nombre.');
     }
+
+    // Firebase inicia sesión solo al registrar; cerramos sesión para que el usuario entre desde Login.
+    // Si tu app usa onAuthStateChanged para navegar, quita esta línea.
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+    }
+
+    setLoading(false);
+    setSuccessModalVisible(true);
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.safeContainer}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.card}>
           <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
           <Text style={styles.title1}>Agroquímica del Valle</Text>
           <Text style={styles.title}>Regístrate</Text>
 
+          {/* NOMBRE */}
           <Text style={styles.label}>Nombre</Text>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, errors.firstName && styles.inputError]}>
             <FontAwesome name="user" size={20} color="#1b4d3e" style={styles.icon} />
             <TextInput
               style={styles.input}
               placeholder="Ingrese su nombre (solo letras)"
               placeholderTextColor="#9CA3AF"
               value={firstName}
-              onChangeText={setFirstName}
+              onChangeText={(t) => {
+                setFirstName(onlyLetters(t));
+                clearError('firstName');
+              }}
+              maxLength={50}
+              autoCapitalize="words"
               autoComplete="given-name"
               textContentType="givenName"
             />
           </View>
+          {errors.firstName && <Text style={styles.errorText}>{errors.firstName}</Text>}
 
+          {/* APELLIDO */}
           <Text style={styles.label}>Apellido</Text>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, errors.lastName && styles.inputError]}>
             <FontAwesome name="user" size={20} color="#1b4d3e" style={styles.icon} />
             <TextInput
               style={styles.input}
               placeholder="Ingrese su apellido (solo letras)"
               placeholderTextColor="#9CA3AF"
               value={lastName}
-              onChangeText={setLastName}
+              onChangeText={(t) => {
+                setLastName(onlyLetters(t));
+                clearError('lastName');
+              }}
+              maxLength={50}
+              autoCapitalize="words"
               autoComplete="family-name"
               textContentType="familyName"
             />
           </View>
+          {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
 
-          <Text style={styles.label}>Correo (@gmail.com / @hotmail.com)</Text>
-          <View style={styles.inputContainer}>
+          {/* CORREO */}
+          <Text style={styles.label}>Correo electrónico</Text>
+          <View style={[styles.inputContainer, errors.email && styles.inputError]}>
             <FontAwesome name="envelope" size={20} color="#1b4d3e" style={styles.icon} />
             <TextInput
               style={styles.input}
               placeholder="ejemplo@gmail.com o @hotmail.com"
               placeholderTextColor="#9CA3AF"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(t) => {
+                setEmail(t.replace(/\s/g, ''));
+                clearError('email');
+              }}
+              onBlur={() => {
+                // Solo valida si el usuario escribió algo; el "obligatorio" se avisa al enviar
+                if (email.trim()) {
+                  const msg = getEmailError(email);
+                  setErrors((prev) => ({ ...prev, email: msg || undefined }));
+                }
+              }}
+              maxLength={100}
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
               autoComplete="email"
               textContentType="emailAddress"
             />
           </View>
+          {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
 
+          {/* CONTRASEÑA */}
           <Text style={styles.label}>Contraseña</Text>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, errors.password && styles.inputError]}>
             <FontAwesome name="lock" size={20} color="#1b4d3e" style={styles.icon} />
             <TextInput
               style={styles.input}
-              placeholder="Mín. 6 chars (Mayús, minús, número)"
+              placeholder="Ingrese su contraseña"
               placeholderTextColor="#9CA3AF"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(t) => {
+                setPassword(t.replace(/\s/g, ''));
+                clearError('password');
+              }}
+              maxLength={MAX_PASSWORD}
               secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
               autoComplete="new-password"
               textContentType="newPassword"
             />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-              <FontAwesome name={showPassword ? "eye-slash" : "eye"} size={20} color="#6B7280" />
+              <FontAwesome name={showPassword ? 'eye-slash' : 'eye'} size={20} color="#6B7280" />
             </TouchableOpacity>
           </View>
+          {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+          {/* Texto de ayuda: se oculta cuando hay un error (el error ya explica los requisitos) */}
+          {!errors.password && (
+            <Text style={styles.hintText}>
+              Mínimo {MIN_PASSWORD} caracteres, con mayúscula, minúscula, número y un carácter especial (@, #, $, !...).
+            </Text>
+          )}
 
-          {/* INDICADOR / MEDIDOR DE SEGURIDAD DE CONTRASEÑA */}
+          {/* MEDIDOR DE FORTALEZA */}
           {password.length > 0 && (
             <View style={styles.strengthMeterContainer}>
               <View style={styles.strengthHeader}>
@@ -199,36 +308,53 @@ export default function SignUp({ navigation }) {
                 </Text>
               </View>
               <View style={styles.strengthBarBackground}>
-                <View 
+                <View
                   style={[
-                    styles.strengthBarFill, 
-                    { width: passwordStrength.width, backgroundColor: passwordStrength.color }
-                  ]} 
+                    styles.strengthBarFill,
+                    { width: passwordStrength.width, backgroundColor: passwordStrength.color },
+                  ]}
                 />
               </View>
             </View>
           )}
 
+          {/* CONFIRMAR CONTRASEÑA */}
           <Text style={styles.label}>Confirmar Contraseña</Text>
-          <View style={styles.inputContainer}>
+          <View style={[styles.inputContainer, errors.confirmPassword && styles.inputError]}>
             <FontAwesome name="lock" size={20} color="#1b4d3e" style={styles.icon} />
             <TextInput
               style={styles.input}
               placeholder="Confirme su contraseña"
               placeholderTextColor="#9CA3AF"
               value={confirmPassword}
-              onChangeText={setConfirmPassword}
+              onChangeText={(t) => {
+                setConfirmPassword(t.replace(/\s/g, ''));
+                clearError('confirmPassword');
+              }}
+              maxLength={MAX_PASSWORD}
               secureTextEntry={!showConfirmPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
               autoComplete="new-password"
               textContentType="newPassword"
             />
             <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
-              <FontAwesome name={showConfirmPassword ? "eye-slash" : "eye"} size={20} color="#6B7280" />
+              <FontAwesome name={showConfirmPassword ? 'eye-slash' : 'eye'} size={20} color="#6B7280" />
             </TouchableOpacity>
           </View>
+          {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
+          {/* Aviso en tiempo real si no coinciden (y aún no hay otro error mostrado) */}
+          {!errors.confirmPassword && confirmPassword.length > 0 && password !== confirmPassword && (
+            <Text style={styles.errorText}>Las contraseñas no coinciden.</Text>
+          )}
 
-          <TouchableOpacity style={styles.button} onPress={handleSignUp}>
-            <Text style={styles.buttonText}>Registrarse</Text>
+          {/* BOTÓN */}
+          <TouchableOpacity
+            style={[styles.button, loading && styles.buttonDisabled]}
+            onPress={handleSignUp}
+            disabled={loading}
+          >
+            <Text style={styles.buttonText}>{loading ? 'Registrando...' : 'Registrarse'}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.loginLinkContainer}>
@@ -237,7 +363,7 @@ export default function SignUp({ navigation }) {
         </View>
       </ScrollView>
 
-      {/* MODAL MODERNO DE REGISTRO EXITOSO */}
+      {/* MODAL DE REGISTRO EXITOSO */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -253,8 +379,8 @@ export default function SignUp({ navigation }) {
             <Text style={styles.modalSubtitle}>
               Tu cuenta se ha creado correctamente.{'\n'}Puedes iniciar sesión ahora.
             </Text>
-            <TouchableOpacity 
-              style={styles.modalButton} 
+            <TouchableOpacity
+              style={styles.modalButton}
               onPress={() => {
                 setSuccessModalVisible(false);
                 navigation.navigate('Login');
@@ -329,6 +455,10 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingBottom: 4,
   },
+  inputError: {
+    borderColor: '#EF4444',
+    marginBottom: 4,
+  },
   icon: {
     marginRight: 10,
   },
@@ -338,7 +468,20 @@ const styles = StyleSheet.create({
     color: '#1F2937',
     fontSize: 15,
   },
-  // ESTILOS PARA EL MEDIDOR DE SEGURIDAD
+  errorText: {
+    alignSelf: 'flex-start',
+    color: '#EF4444',
+    fontSize: 12,
+    marginBottom: 10,
+  },
+  hintText: {
+    alignSelf: 'flex-start',
+    color: '#6B7280',
+    fontSize: 12,
+    marginTop: -8,
+    marginBottom: 10,
+  },
+  // Medidor de seguridad
   strengthMeterContainer: {
     width: '100%',
     marginBottom: 12,
@@ -379,6 +522,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 3,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonText: {
     color: '#FFFFFF',
