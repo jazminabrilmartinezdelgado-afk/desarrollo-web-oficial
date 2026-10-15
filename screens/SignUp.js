@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Image, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { auth } from '../src/config/firebaseConfig';
 import { createUserWithEmailAndPassword, updateProfile, signOut } from 'firebase/auth';
@@ -37,15 +37,6 @@ const PASSWORD_REGEX = new RegExp(
 // Quita todo lo que no sea letra o espacio mientras el usuario escribe
 const onlyLetters = (text) => text.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]/g, '');
 
-// Alert.alert no funciona en web, así que usamos window.alert allí
-const showMessage = (title, message) => {
-  if (Platform.OS === 'web') {
-    window.alert(`${title}\n\n${message}`);
-  } else {
-    Alert.alert(title, message);
-  }
-};
-
 export default function SignUp({ navigation }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -57,6 +48,11 @@ export default function SignUp({ navigation }) {
   const [successModalVisible, setSuccessModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+
+  // Cartel de error personalizado (reemplaza al alert del navegador, funciona igual en web y móvil)
+  const [errorModal, setErrorModal] = useState({ visible: false, title: '', message: '' });
+  const showMessage = (title, message) => setErrorModal({ visible: true, title, message });
+  const closeMessage = () => setErrorModal((prev) => ({ ...prev, visible: false }));
 
   // Evalúa la fortaleza de la contraseña
   const getPasswordStrength = (pass) => {
@@ -129,11 +125,14 @@ export default function SignUp({ navigation }) {
       credential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
     } catch (error) {
       console.error('Error de registro:', error.code, error.message);
-      let errorMessage = 'Hubo un problema al registrar el usuario.';
+      const defaultMessage = 'Hubo un problema al registrar el usuario.';
+      let errorMessage = defaultMessage;
+      let inlineOnly = false; // true = el error se muestra bajo el campo, sin cartel
       switch (error.code) {
         case 'auth/email-already-in-use':
-          errorMessage = 'El correo electrónico ya está en uso.';
+          errorMessage = 'Este correo ya está registrado. Inicie sesión o use otro correo.';
           setErrors((prev) => ({ ...prev, email: errorMessage }));
+          inlineOnly = true;
           break;
         case 'auth/invalid-email':
           errorMessage = 'El formato del correo electrónico no es válido.';
@@ -154,7 +153,10 @@ export default function SignUp({ navigation }) {
           errorMessage = 'La clave API de Firebase no es válida. Revisa el archivo .env.';
           break;
       }
-      showMessage('Error', `${errorMessage}\n\nCódigo: ${error.code ?? 'desconocido'}`);
+      if (!inlineOnly) {
+        const detail = errorMessage === defaultMessage ? `\n\nCódigo: ${error.code ?? 'desconocido'}` : '';
+        showMessage('No se pudo registrar', `${errorMessage}${detail}`);
+      }
       setLoading(false);
       return;
     }
@@ -164,7 +166,8 @@ export default function SignUp({ navigation }) {
         displayName: `${firstName.trim()} ${lastName.trim()}`,
       });
     } catch (error) {
-      showMessage('Cuenta creada', 'La cuenta se creó, pero no se pudo guardar el nombre.');
+      // La cuenta ya existe; solo registramos el fallo para no mostrar dos carteles a la vez
+      console.error('No se pudo guardar el nombre:', error);
     }
 
     // Firebase inicia sesión solo al registrar; cerramos sesión para que el usuario entre desde Login.
@@ -237,7 +240,7 @@ export default function SignUp({ navigation }) {
           {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
 
           {/* CORREO */}
-          <Text style={styles.label}>Correo electrónico</Text>
+          <Text style={styles.label}>Correo (@gmail.com / @hotmail.com)</Text>
           <View style={[styles.inputContainer, errors.email && styles.inputError]}>
             <FontAwesome name="envelope" size={20} color="#1b4d3e" style={styles.icon} />
             <TextInput
@@ -362,6 +365,27 @@ export default function SignUp({ navigation }) {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* CARTEL DE ERROR */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={errorModal.visible}
+        onRequestClose={closeMessage}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.errorCircle}>
+              <FontAwesome name="exclamation" size={40} color="#FFFFFF" />
+            </View>
+            <Text style={styles.modalTitle}>{errorModal.title}</Text>
+            <Text style={styles.modalSubtitle}>{errorModal.message}</Text>
+            <TouchableOpacity style={styles.modalButton} onPress={closeMessage}>
+              <Text style={styles.modalButtonText}>Entendido</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* MODAL DE REGISTRO EXITOSO */}
       <Modal
@@ -565,6 +589,15 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 40,
     backgroundColor: '#1b4d3e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  errorCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#EF4444',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
