@@ -4,8 +4,8 @@ import { FontAwesome } from '@expo/vector-icons';
 import { auth } from '../src/config/firebaseConfig';
 import { createUserWithEmailAndPassword, updateProfile, signOut } from 'firebase/auth';
 
-// ---------- Constantes de validación (cámbialas aquí y se aplican en todo el archivo) ----------
-const MIN_PASSWORD = 8;   // puedes poner 6 si lo prefieres
+// ---------- Constantes de validación ----------
+const MIN_PASSWORD = 8;   
 const MAX_PASSWORD = 64;
 const NAME_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+(?:\s[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+)*$/; // solo letras, espacios simples entre palabras
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@(gmail\.com|hotmail\.com)$/i;
@@ -127,7 +127,7 @@ export default function SignUp({ navigation }) {
       console.error('Error de registro:', error.code, error.message);
       const defaultMessage = 'Hubo un problema al registrar el usuario.';
       let errorMessage = defaultMessage;
-      let inlineOnly = false; // true = el error se muestra bajo el campo, sin cartel
+      let inlineOnly = false; // true = el error se muestra bajo el campo
       switch (error.code) {
         case 'auth/email-already-in-use':
           errorMessage = 'Este correo ya está registrado. Inicie sesión o use otro correo.';
@@ -240,7 +240,7 @@ export default function SignUp({ navigation }) {
           {errors.lastName && <Text style={styles.errorText}>{errors.lastName}</Text>}
 
           {/* CORREO */}
-          <Text style={styles.label}>Correo (@gmail.com / @hotmail.com)</Text>
+          <Text style={styles.label}>Correo electrónico</Text>
           <View style={[styles.inputContainer, errors.email && styles.inputError]}>
             <FontAwesome name="envelope" size={20} color="#1b4d3e" style={styles.icon} />
             <TextInput
@@ -305,7 +305,7 @@ export default function SignUp({ navigation }) {
           {password.length > 0 && (
             <View style={styles.strengthMeterContainer}>
               <View style={styles.strengthHeader}>
-                <Text style={styles.strengthText}>Fortaleza de la contraseña:</Text>
+                <Text style={styles.strengthText}>Seguridad de la contraseña:</Text>
                 <Text style={[styles.strengthLabel, { color: passwordStrength.color }]}>
                   {passwordStrength.label}
                 </Text>
