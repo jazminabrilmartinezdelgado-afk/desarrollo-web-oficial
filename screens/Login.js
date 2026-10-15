@@ -1,5 +1,18 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Image, Modal, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { 
+  View, 
+  Text, 
+  TextInput, 
+  TouchableOpacity, 
+  StyleSheet, 
+  Alert, 
+  Image, 
+  Modal, 
+  ScrollView, 
+  KeyboardAvoidingView, 
+  Platform,
+  Animated
+} from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../src/config/firebaseConfig';
@@ -9,56 +22,87 @@ export default function Login({ navigation }) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [userName, setUserName] = useState('');
-  const [welcomeModalVisible, setWelcomeModalVisible] = useState(false);
   
-  // Estado para el modal de recuperación de contraseña
+  // Modales
+  const [welcomeModalVisible, setWelcomeModalVisible] = useState(false);
   const [forgotModalVisible, setForgotModalVisible] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
 
+  // Cartel de error estético
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Animaciones para Modales y Carteles
+  const errorFadeAnim = useRef(new Animated.Value(0)).current;
+  const modalScaleAnim = useRef(new Animated.Value(0.8)).current;
+  const modalFadeAnim = useRef(new Animated.Value(0)).current;
+
+  // Función para disparar la animación del cartel de error
+  const triggerErrorAnimation = () => {
+    errorFadeAnim.setValue(0);
+    Animated.timing(errorFadeAnim, {
+      toValue: 1,
+      duration: 350,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  // Función para disparar la animación del modal de bienvenida
+  const triggerWelcomeModalAnimation = () => {
+    modalScaleAnim.setValue(0.8);
+    modalFadeAnim.setValue(0);
+    Animated.parallel([
+      Animated.spring(modalScaleAnim, {
+        toValue: 1,
+        friction: 6,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+      Animated.timing(modalFadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      })
+    ]).start();
+  };
+
   const handleLogin = async () => {
+    // Limpiar mensaje de error previo al reintentar
+    setErrorMessage('');
+
     if (!email.trim() || !password) {
-      Alert.alert("Campos incompletos", "Por favor ingrese tanto el correo como la contraseña.");
+      setErrorMessage("Por favor ingrese tanto el correo como la contraseña.");
+      triggerErrorAnimation();
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
-      Alert.alert("Correo inválido", "Por favor ingrese un correo electrónico válido.");
+      setErrorMessage("Por favor ingrese un correo electrónico válido.");
+      triggerErrorAnimation();
       return;
     }
 
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
+      
+      // Obtiene el nombre registrado en Firebase Auth (displayName) o extrae el nombre del correo
       const displayName = user.displayName || user.email.split('@')[0];
       setUserName(displayName);
+      
+      // Muestra el modal flotante de bienvenida con el nombre
       setWelcomeModalVisible(true);
+      triggerWelcomeModalAnimation();
     } catch (error) {
       console.error('Error de inicio de sesión:', error.code, error.message);
-      let errorMessage = "Hubo un problema al iniciar sesión.";
-      switch (error.code) {
-        case 'auth/invalid-email':
-          errorMessage = "El formato del correo electrónico no es válido.";
-          break;
-        case 'auth/invalid-credential':
-        case 'auth/wrong-password':
-          errorMessage = "Contraseña incorrecta. Verifique sus datos e intente nuevamente.";
-          break;
-        case 'auth/user-not-found':
-          errorMessage = "No existe una cuenta registrada con este correo electrónico.";
-          break;
-        case 'auth/network-request-failed':
-          errorMessage = "Error de conexión, por favor intente más tarde.";
-          break;
-        case 'auth/invalid-api-key':
-          errorMessage = "La clave API de Firebase no es válida. Revisa el archivo .env.";
-          break;
-      }
-      Alert.alert("Acceso denegado", `${errorMessage}\n\nCódigo: ${error.code ?? 'desconocido'}`);
+      
+      // Cartel estético de error solicitado
+      setErrorMessage("Acceso inválido. Por favor, inténtelo otra vez.");
+      triggerErrorAnimation();
     }
   };
 
-  // Función para manejar el envío del correo de recuperación
+  // Función para enviar correo de recuperación de contraseña
   const handleForgotPassword = async () => {
     if (!forgotEmail.trim()) {
       Alert.alert("Campo vacío", "Por favor ingrese su correo electrónico para recuperar la contraseña.");
@@ -78,11 +122,11 @@ export default function Login({ navigation }) {
       Alert.alert("Correo enviado", "Se envió un mensaje a su Gmail para restablecer la contraseña.");
     } catch (error) {
       console.error('Error al recuperar contraseña:', error.code, error.message);
-      let errorMessage = "No se pudo enviar el correo de recuperación.";
+      let msg = "No se pudo enviar el correo de recuperación.";
       if (error.code === 'auth/user-not-found') {
-        errorMessage = "No hay ningún usuario registrado con este correo.";
+        msg = "No hay ningún usuario registrado con este correo.";
       }
-      Alert.alert("Error", errorMessage);
+      Alert.alert("Error", msg);
     }
   };
 
@@ -97,6 +141,14 @@ export default function Login({ navigation }) {
           <Text style={styles.title1}>Agroquímica del Valle</Text>
           <Text style={styles.title}>Iniciar sesión</Text>
 
+          {/* CARTEL ESTÉTICO MODERNO DE ERROR DE LOGIN CON ANIMACIÓN */}
+          {errorMessage !== '' && (
+            <Animated.View style={[styles.errorBanner, { opacity: errorFadeAnim }]}>
+              <FontAwesome name="exclamation-circle" size={20} color="#DC2626" style={{ marginRight: 8 }} />
+              <Text style={styles.errorBannerText}>{errorMessage}</Text>
+            </Animated.View>
+          )}
+
           <Text style={styles.label}>Correo</Text>
           <View style={styles.inputContainer}>
             <FontAwesome name="envelope" size={20} color="#1b4d3e" style={styles.icon} />
@@ -105,7 +157,10 @@ export default function Login({ navigation }) {
               placeholder="Ingrese su correo"
               placeholderTextColor="#9CA3AF"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                if (errorMessage) setErrorMessage('');
+              }}
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
@@ -121,7 +176,10 @@ export default function Login({ navigation }) {
               placeholder="Ingrese su contraseña"
               placeholderTextColor="#9CA3AF"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => {
+                setPassword(text);
+                if (errorMessage) setErrorMessage('');
+              }}
               secureTextEntry={!showPassword}
               autoComplete="password"
               textContentType="password"
@@ -149,30 +207,45 @@ export default function Login({ navigation }) {
         </View>
       </ScrollView>
 
-      {/* MODAL MODERNO DE BIENVENIDA */}
+      {/* MODAL MODERNO ANIMADO DE BIENVENIDA CON NOMBRE DE USUARIO */}
       <Modal
-        animationType="fade"
+        animationType="none"
         transparent={true}
         visible={welcomeModalVisible}
         onRequestClose={() => setWelcomeModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <Animated.View 
+            style={[
+              styles.modalContent, 
+              { 
+                opacity: modalFadeAnim,
+                transform: [{ scale: modalScaleAnim }] 
+              }
+            ]}
+          >
             <View style={styles.checkCircle}>
               <FontAwesome name="user-check" size={38} color="#FFFFFF" />
             </View>
             <Text style={styles.modalTitle}>¡Bienvenido/a!</Text>
             <Text style={styles.modalUserText}>{userName}</Text>
+
+            <View style={styles.divider} />
+
             <Text style={styles.modalSubtitle}>
-              Has ingresado correctamente al sistema de gestión de Agroquímica del Valle.
+              Has ingresado con éxito al sistema corporativo de Agroquímica del Valle.
             </Text>
+
             <TouchableOpacity 
               style={styles.modalButton} 
-              onPress={() => setWelcomeModalVisible(false)}
+              onPress={() => {
+                setWelcomeModalVisible(false);
+                navigation.navigate('Home'); 
+              }}
             >
               <Text style={styles.modalButtonText}>Continuar al Panel →</Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
@@ -185,7 +258,7 @@ export default function Login({ navigation }) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <View style={styles.checkCircle}>
+            <View style={styles.keyCircle}>
               <FontAwesome name="key" size={34} color="#FFFFFF" />
             </View>
             <Text style={styles.modalTitle}>Recuperar Contraseña</Text>
@@ -267,8 +340,26 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#374151',
-    marginBottom: 20,
+    marginBottom: 16,
     textAlign: 'center',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+    borderLeftWidth: 4,
+    borderLeftColor: '#DC2626',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    width: '100%',
+    marginBottom: 16,
+  },
+  errorBannerText: {
+    color: '#991B1B',
+    fontSize: 13,
+    fontWeight: '600',
+    flex: 1,
   },
   label: {
     alignSelf: 'flex-start',
@@ -333,28 +424,37 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContent: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 30,
+    borderRadius: 24,
+    padding: 28,
     alignItems: 'center',
     width: '100%',
     maxWidth: 400,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.25,
-    shadowRadius: 10,
-    elevation: 5,
+    shadowRadius: 20,
+    elevation: 10,
   },
   checkCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 75,
+    height: 75,
+    borderRadius: 37.5,
+    backgroundColor: '#1b4d3e',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  keyCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: '#1b4d3e',
     justifyContent: 'center',
     alignItems: 'center',
@@ -370,23 +470,35 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1b4d3e',
-    marginBottom: 12,
     textAlign: 'center',
+    marginBottom: 12,
+  },
+  divider: {
+    height: 2,
+    backgroundColor: '#E5E7EB',
+    width: '60%',
+    marginVertical: 10,
+    borderRadius: 1,
   },
   modalSubtitle: {
     fontSize: 14,
-    color: '#6B7280',
+    color: '#4B5563',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
     lineHeight: 20,
   },
   modalButton: {
     backgroundColor: '#1b4d3e',
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
     width: '100%',
     alignItems: 'center',
+    shadowColor: '#1b4d3e',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
   },
   modalButtonText: {
     color: '#FFFFFF',
