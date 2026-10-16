@@ -168,8 +168,8 @@ export default function Login({ navigation }) {
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
       style={styles.safeContainer}
-    >
-      <ImageBackground                              {/* FONDO Y OVERLAY VERDE */}
+    > {/* FONDO Y OVERLAY VERDE */}
+      <ImageBackground                              
           source={require('../assets/fondo.png')}
           style={styles.backgroundImage}
           resizeMode="cover"
@@ -178,8 +178,8 @@ export default function Login({ navigation }) {
         <View style={styles.overlay}>
           <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}> {/* FONDO Y OVERLAY VERDE */}
             
-            {/* TARJETA ANIMADA */}
-            <Animated.View {/* TARJETA PRINCIPAL, LOGO Y TITULOS */}
+            {/* TARJETA PRINCIPAL, LOGO Y TITULOS */}
+            <Animated.View 
               style={[
                 styles.card, 
                 { 
@@ -238,8 +238,9 @@ export default function Login({ navigation }) {
                   <FontAwesome name={showPassword ? "eye-slash" : "eye"} size={20} color="#6B7280" />
                 </TouchableOpacity>
               </View> {/* CAMPO DE CONTRASEÑA */}
-
-              <TouchableOpacity {/* BOTON DE INGRESO Y ENLACES */}
+              
+                  {/* BOTON DE INGRESO Y ENLACES */}
+              <TouchableOpacity 
                 style={styles.forgotContainer} 
                 onPress={() => setForgotModalVisible(true)}
                 activeOpacity={0.7}
