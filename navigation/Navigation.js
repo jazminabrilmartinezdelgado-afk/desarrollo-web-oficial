@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged } from 'firebase/auth'; //escuchador 
 import { auth, isFirebaseConfigured } from '../src/config/firebaseConfig';
 // Importación de pantallas del sistema
 import Login from '../screens/Login';

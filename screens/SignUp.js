@@ -157,7 +157,7 @@ export default function SignUp({ navigation }) {
 
     let credential;
     try {
-      credential = await createUserWithEmailAndPassword(auth, cleanEmail, password);
+      credential = await createUserWithEmailAndPassword(auth, cleanEmail, password); //función asíncrona de creación de cuenta en Firebase Authentication
     } catch (error) {
       console.error('Error de registro:', error.code, error.message);
       const defaultMessage = 'Hubo un problema al registrar el usuario.';
@@ -197,7 +197,7 @@ export default function SignUp({ navigation }) {
     }
 
     try {
-      await updateProfile(credential.user, {
+      await updateProfile(credential.user, { //se invoca updateProfile para asentar el displayName concatenando el nombre y el apellido del usuario
         displayName: `${firstName.trim()} ${lastName.trim()}`,
       });
     } catch (error) {
