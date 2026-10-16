@@ -40,6 +40,7 @@ const PASSWORD_REGEX = new RegExp(
 
 const onlyLetters = (text) => text.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]/g, '');
 
+// almacena temporalmete 
 export default function SignUp({ navigation }) {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
@@ -234,7 +235,6 @@ export default function SignUp({ navigation }) {
               ]}
             >
 
-              {/* ==================== FORMULARIO DE REGISTRO ==================== */}
               <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
               <Text style={styles.title1}>Agroquímica del Valle</Text>
               <Text style={styles.title}>Regístrate</Text>
