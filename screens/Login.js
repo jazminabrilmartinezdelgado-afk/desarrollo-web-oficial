@@ -169,17 +169,17 @@ export default function Login({ navigation }) {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
       style={styles.safeContainer}
     >
-      <ImageBackground
+      <ImageBackground                              {/* FONDO Y OVERLAY VERDE */}
           source={require('../assets/fondo.png')}
           style={styles.backgroundImage}
           resizeMode="cover"
           >
             
         <View style={styles.overlay}>
-          <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}> {/* FONDO Y OVERLAY VERDE */}
             
             {/* TARJETA ANIMADA */}
-            <Animated.View 
+            <Animated.View {/* TARJETA PRINCIPAL, LOGO Y TITULOS */}
               style={[
                 styles.card, 
                 { 
@@ -190,7 +190,7 @@ export default function Login({ navigation }) {
             >
               <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
               <Text style={styles.title1}>Agroquímica del Valle</Text>
-              <Text style={styles.title}>Iniciar sesión</Text>
+              <Text style={styles.title}>Iniciar sesión</Text> {/* TARJETA PRINCIPAL, LOGO Y TITULOS */}
 
               {errorMessage !== '' && (
                 <Animated.View style={[styles.errorBanner, { opacity: errorFadeAnim }]}>
@@ -199,7 +199,7 @@ export default function Login({ navigation }) {
                 </Animated.View>
               )}
 
-              <Text style={styles.label}>Correo</Text>
+              <Text style={styles.label}>Correo</Text>  {/* CAMPO DE CORREO ELECTRONICO */}
               <View style={styles.inputContainer}>
                 <FontAwesome name="envelope" size={20} color="#1b4d3e" style={styles.icon} />
                 <TextInput
@@ -216,9 +216,9 @@ export default function Login({ navigation }) {
                   autoComplete="email"
                   textContentType="emailAddress"
                 />
-              </View>
+              </View> {/* CAMPO DE CORREO ELECTRONICO */}
 
-              <Text style={styles.label}>Contraseña</Text>
+              <Text style={styles.label}>Contraseña</Text> {/* CAMPO DE CONTRASEÑA */}
               <View style={styles.inputContainer}>
                 <FontAwesome name="lock" size={20} color="#1b4d3e" style={styles.icon} />
                 <TextInput
@@ -237,9 +237,9 @@ export default function Login({ navigation }) {
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   <FontAwesome name={showPassword ? "eye-slash" : "eye"} size={20} color="#6B7280" />
                 </TouchableOpacity>
-              </View>
+              </View> {/* CAMPO DE CONTRASEÑA */}
 
-              <TouchableOpacity 
+              <TouchableOpacity {/* BOTON DE INGRESO Y ENLACES */}
                 style={styles.forgotContainer} 
                 onPress={() => setForgotModalVisible(true)}
                 activeOpacity={0.7}
@@ -269,7 +269,7 @@ export default function Login({ navigation }) {
                 activeOpacity={0.7}
               >
                 <Text style={styles.signUpText}>¿No tienes cuenta aún? Regístrate</Text>
-              </TouchableOpacity>
+              </TouchableOpacity> {/* BOTON DE INGRESO Y ENLACES */}
             </Animated.View>
           </ScrollView>
         </View>
@@ -369,8 +369,8 @@ export default function Login({ navigation }) {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
+{/* ESTILO DEL CONTENEDOR, TARJETA, TITULOS Y CAMPOS */}
+const styles = StyleSheet.create({ 
   safeContainer: {
     flex: 1,
   },
@@ -466,8 +466,8 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 42,
     color: '#1F2937',
-    fontSize: 15,
-  },
+    fontSize: 15, 
+  }, 
   forgotContainer: {
     alignSelf: 'flex-end',
     marginBottom: 10,
