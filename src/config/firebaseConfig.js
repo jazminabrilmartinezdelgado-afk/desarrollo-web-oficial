@@ -8,6 +8,8 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
+// ========== 1. CONFIGURACIÓN DE CREDENCIALES (Variables de Entorno) ==========
+// Cargamos las llaves secretas de Firebase desde el archivo .env de forma segura
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -17,20 +19,26 @@ const firebaseConfig = {
   appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
 };
 
+// ========== 2. INICIALIZACIÓN DE LA APLICACIÓN FIREBASE ==========
 const app = initializeApp(firebaseConfig);
 
 let auth;
 try {
+  // ========== 3. GESTIÓN DE PERSISTENCIA MULTIPLATAFORMA ==========
+  // Detecta automáticamente si corre en la Web o en Dispositivos Móviles (Android/iOS)
   const persistence = Platform.OS === 'web' 
     ? browserLocalPersistence 
     : getReactNativePersistence(AsyncStorage);
     
   auth = initializeAuth(app, { persistence });
 } catch (error) {
+  // ========== 4. PROTECCIÓN CONTRA REINICIALIZACIÓN ==========
+  // Evita que la app falle si el sistema intenta inicializar la autenticación dos veces
   if (error.code !== 'auth/already-initialized') throw error;
   auth = getAuth(app);
 }
 
+// ========== 5. VALIDACIÓN Y EXPORTACIÓN DE MÓDULOS ==========
 const isFirebaseConfigured = Boolean(firebaseConfig.apiKey);
 
 export { auth, isFirebaseConfigured };

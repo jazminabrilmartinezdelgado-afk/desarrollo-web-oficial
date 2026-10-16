@@ -316,7 +316,7 @@ export default function Login({ navigation }) {
               ]} 
               onPress={() => {
                 setWelcomeModalVisible(false);
-                navigation.navigate('Home'); 
+                navigation.navigate('Home'); //Enlace directo para navegar al Home tras el login exitoso
               }}
             >
               <Text style={styles.modalButtonText}>Continuar al Panel →</Text>

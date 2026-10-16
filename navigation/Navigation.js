@@ -54,7 +54,7 @@ export default function Navigation() {
   return (
     <View style={styles.container}>
       <NavigationContainer>
-        <Stack.Navigator
+        <Stack.Navigator //ruteo de la pantalla 
           screenOptions={{
             headerStyle: { backgroundColor: '#1b4d3e' },
             headerTintColor: '#ffffff',
