@@ -554,6 +554,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     alignSelf: 'flex-start',
+    width: '100%',
     color: '#EF4444',
     fontSize: 12,
     marginBottom: 10,
@@ -573,15 +574,20 @@ const styles = StyleSheet.create({
   strengthHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
     marginBottom: 4,
   },
   strengthText: {
     fontSize: 12,
     color: '#6B7280',
+    flex: 1,
+    flexshrink: 1,
   },
   strengthLabel: {
     fontSize: 12,
     fontWeight: 'bold',
+    marginLeft: 8,
   },
   strengthBarBackground: {
     height: 6,
