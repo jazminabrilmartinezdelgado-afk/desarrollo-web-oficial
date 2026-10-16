@@ -16,38 +16,36 @@ import {
   Pressable
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'; //La importación de las herramientas de Firebase//
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../src/config/firebaseConfig';
 
 export default function Login({ navigation }) {
+  // =========================================================================
+  // 1. ESTADOS PRINCIPALES DEL FORMULARIO
+  // =========================================================================
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [userName, setUserName] = useState('');
   
-  // Modales
+  // Estados para modales y alertas estéticas
   const [welcomeModalVisible, setWelcomeModalVisible] = useState(false);
   const [forgotModalVisible, setForgotModalVisible] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
-
-  // Cartel de error estético
   const [errorMessage, setErrorMessage] = useState('');
 
-  // ---------- ANIMACIONES ----------
-  // 1. Animación de entrada de la tarjeta
+  // =========================================================================
+  // 2. CONFIGURACIÓN DE ANIMACIONES (React Native Animated)
+  // =========================================================================
   const cardScale = useRef(new Animated.Value(0.92)).current;
   const cardOpacity = useRef(new Animated.Value(0)).current;
-
-  // 2. Animación del botón principal al presionar
   const buttonScale = useRef(new Animated.Value(1)).current;
-
-  // 3. Animación de errores y modales
   const errorFadeAnim = useRef(new Animated.Value(0)).current;
   const modalScaleAnim = useRef(new Animated.Value(0.8)).current;
   const modalFadeAnim = useRef(new Animated.Value(0)).current;
 
+  // Animación de entrada de la tarjeta al cargar la pantalla
   useEffect(() => {
-    // Disparar animación de entrada del formulario al cargar
     Animated.parallel([
       Animated.timing(cardOpacity, {
         toValue: 1,
@@ -64,57 +62,41 @@ export default function Login({ navigation }) {
   }, []);
 
   const onPressInButton = () => {
-    Animated.spring(buttonScale, {
-      toValue: 0.96,
-      useNativeDriver: true,
-    }).start();
+    Animated.spring(buttonScale, { toValue: 0.96, useNativeDriver: true }).start();
   };
 
   const onPressOutButton = () => {
-    Animated.spring(buttonScale, {
-      toValue: 1,
-      friction: 5,
-      useNativeDriver: true,
-    }).start();
+    Animated.spring(buttonScale, { toValue: 1, friction: 5, useNativeDriver: true }).start();
   };
 
   const triggerErrorAnimation = () => {
     errorFadeAnim.setValue(0);
-    Animated.timing(errorFadeAnim, {
-      toValue: 1,
-      duration: 350,
-      useNativeDriver: true,
-    }).start();
+    Animated.timing(errorFadeAnim, { toValue: 1, duration: 350, useNativeDriver: true }).start();
   };
 
   const triggerWelcomeModalAnimation = () => {
     modalScaleAnim.setValue(0.8);
     modalFadeAnim.setValue(0);
     Animated.parallel([
-      Animated.spring(modalScaleAnim, {
-        toValue: 1,
-        friction: 6,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-      Animated.timing(modalFadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      })
+      Animated.spring(modalScaleAnim, { toValue: 1, friction: 6, tension: 40, useNativeDriver: true }),
+      Animated.timing(modalFadeAnim, { toValue: 1, duration: 300, useNativeDriver: true })
     ]).start();
   };
 
+  // =========================================================================
+  // 3. LÓGICA DE AUTENTICACIÓN CON FIREBASE
+  // =========================================================================
   const handleLogin = async () => {
     setErrorMessage('');
 
-    // Valida que los campos no estén vacíos y tengan formato correcto...
+    // Validación de campos vacíos
     if (!email.trim() || !password) {
       setErrorMessage("Por favor ingrese tanto el correo como la contraseña.");
       triggerErrorAnimation();
       return;
     }
 
+    // Validación de formato de correo
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
       setErrorMessage("Por favor ingrese un correo electrónico válido.");
@@ -123,24 +105,23 @@ export default function Login({ navigation }) {
     }
 
     try {
-      // 1. Ejecuta la acción de autenticación con Firebase
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password); //El uso directo de Firebase dentro de la función de acceso//
+      // Conexión directa con Firebase Auth para iniciar sesión
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
       const user = userCredential.user;
-      
       const displayName = user.displayName || user.email.split('@')[0];
       setUserName(displayName);
       
-      // 2. Muestra un modal animado de bienvenida si todo sale bien
+      // Activación del modal de bienvenida animado
       setWelcomeModalVisible(true);
       triggerWelcomeModalAnimation();
     } catch (error) {
-      // Si falla, muestra un cartel de error estético
       console.error('Error de inicio de sesión:', error.code, error.message);
       setErrorMessage("Acceso inválido. Por favor, inténtelo otra vez.");
       triggerErrorAnimation();
     }
   };
 
+  // Lógica de recuperación de contraseña
   const handleForgotPassword = async () => {
     if (!forgotEmail.trim()) {
       Alert.alert("Campo vacío", "Por favor ingrese su correo electrónico para recuperar la contraseña.");
@@ -168,21 +149,24 @@ export default function Login({ navigation }) {
     }
   };
 
+  // =========================================================================
+  // 4. RENDERIZADO DE LA INTERFAZ VISUAL
+  // =========================================================================
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
       style={styles.safeContainer}
-    > {/* FONDO Y OVERLAY VERDE */}
-      <ImageBackground                              
-          source={require('../assets/fondo.png')}
-          style={styles.backgroundImage}
-          resizeMode="cover"
-          >
-            
+    >
+      {/* Fondo institucional con filtro y opacidad verde corporativa */}
+      <ImageBackground                          
+        source={require('../assets/fondo.png')}
+        style={styles.backgroundImage}
+        resizeMode="cover"
+      >
         <View style={styles.overlay}>
-          <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}> {/* FONDO Y OVERLAY VERDE */}
+          <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
             
-            {/* TARJETA PRINCIPAL, LOGO Y TITULOS */}
+            {/* Tarjeta flotante principal con animación */}
             <Animated.View 
               style={[
                 styles.card, 
@@ -194,8 +178,9 @@ export default function Login({ navigation }) {
             >
               <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
               <Text style={styles.title1}>Agroquímica del Valle</Text>
-              <Text style={styles.title}>Iniciar sesión</Text> {/* TARJETA PRINCIPAL, LOGO Y TITULOS */}
+              <Text style={styles.title}>Iniciar sesión</Text>
 
+              {/* Banner de error estético animado */}
               {errorMessage !== '' && (
                 <Animated.View style={[styles.errorBanner, { opacity: errorFadeAnim }]}>
                   <FontAwesome name="exclamation-circle" size={20} color="#DC2626" style={{ marginRight: 8 }} />
@@ -203,7 +188,8 @@ export default function Login({ navigation }) {
                 </Animated.View>
               )}
 
-              <Text style={styles.label}>Correo</Text>  {/* CAMPO DE CORREO ELECTRONICO */}
+              {/* Campo de Correo Electrónico */}
+              <Text style={styles.label}>Correo</Text>
               <View style={styles.inputContainer}>
                 <FontAwesome name="envelope" size={20} color="#1b4d3e" style={styles.icon} />
                 <TextInput
@@ -220,9 +206,10 @@ export default function Login({ navigation }) {
                   autoComplete="email"
                   textContentType="emailAddress"
                 />
-              </View> {/* CAMPO DE CORREO ELECTRONICO */}
+              </View>
 
-              <Text style={styles.label}>Contraseña</Text> {/* CAMPO DE CONTRASEÑA */}
+              {/* Campo de Contraseña con botón para mostrar/ocultar */}
+              <Text style={styles.label}>Contraseña</Text>
               <View style={styles.inputContainer}>
                 <FontAwesome name="lock" size={20} color="#1b4d3e" style={styles.icon} />
                 <TextInput
@@ -241,9 +228,9 @@ export default function Login({ navigation }) {
                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                   <FontAwesome name={showPassword ? "eye-slash" : "eye"} size={20} color="#6B7280" />
                 </TouchableOpacity>
-              </View> {/* CAMPO DE CONTRASEÑA */}
+              </View>
               
-                  {/* BOTON DE INGRESO Y ENLACES */}
+              {/* Enlace de recuperación de contraseña */}
               <TouchableOpacity 
                 style={styles.forgotContainer} 
                 onPress={() => setForgotModalVisible(true)}
@@ -252,7 +239,7 @@ export default function Login({ navigation }) {
                 <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
               </TouchableOpacity>
 
-              {/* BOTÓN CON ANIMACIÓN DE COMPRESIÓN TÁCTIL */}
+              {/* Botón principal de Acceso con animación táctil */}
               <Animated.View style={{ width: '100%', transform: [{ scale: buttonScale }] }}>
                 <Pressable
                   style={({ hovered, pressed }) => [
@@ -262,25 +249,27 @@ export default function Login({ navigation }) {
                   ]}
                   onPressIn={onPressInButton}
                   onPressOut={onPressOutButton}
-                  onPress={handleLogin} // <-- Aquí se ejecuta la acción al presionar
+                  onPress={handleLogin}
                 >
                   <Text style={styles.buttonText}>Ingresar</Text>
                 </Pressable>
               </Animated.View>
 
+              {/* Enlace de redirección a la pantalla de Registro */}
               <TouchableOpacity 
                 onPress={() => navigation.navigate('SignUp')} 
                 style={styles.signUpLinkContainer}
                 activeOpacity={0.7}
               >
                 <Text style={styles.signUpText}>¿No tienes cuenta aún? Regístrate</Text>
-              </TouchableOpacity> {/* BOTON DE INGRESO Y ENLACES */}
+              </TouchableOpacity>
             </Animated.View>
+
           </ScrollView>
         </View>
       </ImageBackground>
 
-      {/* MODAL MODERNO ANIMADO DE BIENVENIDA */}
+      {/* Modal de Bienvenida Post-Autenticación */}
       <Modal
         animationType="none"
         transparent={true}
@@ -316,7 +305,7 @@ export default function Login({ navigation }) {
               ]} 
               onPress={() => {
                 setWelcomeModalVisible(false);
-                navigation.navigate('Home'); //Enlace directo para navegar al Home tras el login exitoso
+                navigation.navigate('Home'); // Enlace final con Home.js
               }}
             >
               <Text style={styles.modalButtonText}>Continuar al Panel →</Text>
@@ -325,7 +314,7 @@ export default function Login({ navigation }) {
         </View>
       </Modal>
 
-      {/* MODAL DE RECUPERACIÓN DE CONTRASEÑA */}
+      {/* Modal de Recuperación de Contraseña */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -374,7 +363,10 @@ export default function Login({ navigation }) {
     </KeyboardAvoidingView>
   );
 }
-{/* ESTILO DEL CONTENEDOR, TARJETA, TITULOS Y CAMPOS */}
+
+// =========================================================================
+// 5. ESTILOS CORPORATIVOS
+// =========================================================================
 const styles = StyleSheet.create({ 
   safeContainer: {
     flex: 1,
