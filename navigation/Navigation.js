@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from '../src/config/firebaseConfig';
+// Importación de pantallas del sistema
 import Login from '../screens/Login';
 import SignUp from '../screens/SignUp';
 import Home from '../screens/Home';
@@ -11,14 +12,18 @@ import Home from '../screens/Home';
 const Stack = createStackNavigator();
 
 export default function Navigation() {
+  // Estados para controlar el usuario actual y la carga inicial
   const [user, setUser] = useState(null); // Cambiamos a null por defecto para evitar bucles de carga infinita en web
   const [loading, setLoading] = useState(true);
 
+  // ---------- VIGILANTE DE SESIÓN EN TIEMPO REAL (Firebase Auth) ----------
   useEffect(() => {
     if (!auth) {
       setLoading(false);
       return;
     }
+
+    // onAuthStateChanged detecta si el usuario está logueado o no
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
@@ -26,6 +31,7 @@ export default function Navigation() {
     return unsubscribe;
   }, []);
 
+  // ---------- VALIDACIÓN DE CONFIGURACIÓN DE FIREBASE ----------
   if (!isFirebaseConfigured) {
     return (
       <View style={styles.center}>
@@ -36,6 +42,7 @@ export default function Navigation() {
     );
   }
 
+  // ---------- PANTALLA DE CARGA INICIAL (Spinner) ----------
   if (loading) {
     return (
       <View style={styles.center}>
@@ -43,7 +50,7 @@ export default function Navigation() {
       </View>
     );
   }
-
+// ---------- NAVEGACIÓN PRINCIPAL CONDICIONAL ----------
   return (
     <View style={styles.container}>
       <NavigationContainer>
@@ -68,6 +75,7 @@ export default function Navigation() {
   );
 }
 
+// ---------- ESTILOS Y ADAPTABILIDAD WEB/MÓVIL ----------
 const styles = StyleSheet.create({
   container: {
     flex: 1,

@@ -16,7 +16,7 @@ import {
   Pressable
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth'; //La importación de las herramientas de Firebase//
 import { auth } from '../src/config/firebaseConfig';
 
 export default function Login({ navigation }) {
@@ -108,6 +108,7 @@ export default function Login({ navigation }) {
   const handleLogin = async () => {
     setErrorMessage('');
 
+    // Valida que los campos no estén vacíos y tengan formato correcto...
     if (!email.trim() || !password) {
       setErrorMessage("Por favor ingrese tanto el correo como la contraseña.");
       triggerErrorAnimation();
@@ -122,15 +123,18 @@ export default function Login({ navigation }) {
     }
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      // 1. Ejecuta la acción de autenticación con Firebase
+      const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password); //El uso directo de Firebase dentro de la función de acceso//
       const user = userCredential.user;
       
       const displayName = user.displayName || user.email.split('@')[0];
       setUserName(displayName);
       
+      // 2. Muestra un modal animado de bienvenida si todo sale bien
       setWelcomeModalVisible(true);
       triggerWelcomeModalAnimation();
     } catch (error) {
+      // Si falla, muestra un cartel de error estético
       console.error('Error de inicio de sesión:', error.code, error.message);
       setErrorMessage("Acceso inválido. Por favor, inténtelo otra vez.");
       triggerErrorAnimation();
@@ -258,7 +262,7 @@ export default function Login({ navigation }) {
                   ]}
                   onPressIn={onPressInButton}
                   onPressOut={onPressOutButton}
-                  onPress={handleLogin}
+                  onPress={handleLogin} // <-- Aquí se ejecuta la acción al presionar
                 >
                   <Text style={styles.buttonText}>Ingresar</Text>
                 </Pressable>
