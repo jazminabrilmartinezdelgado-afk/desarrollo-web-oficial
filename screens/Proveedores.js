@@ -18,6 +18,7 @@ import {
   Platform,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import {
   collection,
   addDoc,
@@ -48,6 +49,9 @@ const ROL_USUARIO = 'ADMIN';
 // Foto del banner (opcional). Ejemplo: require('../assets/campo.jpg')
 const BANNER_IMAGE = null;
 
+// Tamaño máximo del texto base64 de la imagen (Firestore permite 1 MB por documento)
+const MAX_IMAGE_BASE64 = 700000;
+
 const FILTROS = [
   { key: 'todos', label: 'Todos' },
   { key: 'activo', label: 'Activo' },
@@ -60,6 +64,7 @@ const EMPTY_FORM = {
   telefono: '+54 9 387 ',
   email: '',
   direccion: '',
+  imagen: '',
   estado: true,
 };
 
@@ -225,6 +230,15 @@ function ProveedorCard({ item, index, onEdit, onToggle }) {
         ]}
       >
         <View style={styles.cardRow}>
+          {/* Imagen del proveedor */}
+          {item.imagen ? (
+            <Image source={{ uri: item.imagen }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarEmpty]}>
+              <FontAwesome name="truck" size={20} color={GREEN_MAIN} />
+            </View>
+          )}
+
           <View style={{ flex: 1 }}>
             <View style={[styles.tag, { backgroundColor: activo ? '#DCFCE7' : '#E5E7EB' }]}>
               <Text style={[styles.tagText, { color: activo ? '#166534' : '#6B7280' }]}>
@@ -329,6 +343,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
           telefono: proveedor.telefono || '+54 9 387 ',
           email: proveedor.email || '',
           direccion: proveedor.direccion || '',
+          imagen: proveedor.imagen || '',
           estado: isActivo(proveedor),
         }
       : EMPTY_FORM
@@ -358,6 +373,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
       ])
     );
     shine.start();
+    return () => shine.stop();
   }, []);
 
   const close = () =>
@@ -374,6 +390,45 @@ function FormModal({ proveedor, onClose, onSaved }) {
       Animated.timing(shake, { toValue: 5, duration: 50, useNativeDriver: true }),
       Animated.timing(shake, { toValue: 0, duration: 50, useNativeDriver: true }),
     ]).start();
+
+  // ---------- IMAGEN (expo-image-picker) ----------
+  const pickImage = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        setBanner('Necesitamos permiso para acceder a tus fotos.');
+        runShake();
+        return;
+      }
+
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.3,
+        base64: true,
+      });
+      if (res.canceled) return;
+
+      const asset = res.assets[0];
+      if (!asset.base64 || asset.base64.length > MAX_IMAGE_BASE64) {
+        setBanner('La imagen es muy pesada. Elegí otra más liviana.');
+        runShake();
+        return;
+      }
+
+      setForm((f) => ({
+        ...f,
+        imagen: `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`,
+      }));
+      setBanner('');
+    } catch (err) {
+      console.error('Error al elegir imagen:', err);
+      setBanner('No se pudo abrir la galería.');
+    }
+  };
+
+  const removeImage = () => setForm((f) => ({ ...f, imagen: '' }));
 
   const handlePhoneChange = (val) => {
     const prefix = '+54 9 387 ';
@@ -438,6 +493,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
         telefono: form.telefono.trim(),
         email: form.email.trim().toLowerCase(),
         direccion: form.direccion.trim(),
+        imagen: form.imagen,
         estado: form.estado,
       };
 
@@ -520,6 +576,30 @@ function FormModal({ proveedor, onClose, onSaved }) {
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingBottom: 16 }}
           >
+            {/* Selector de imagen */}
+            <View style={styles.photoRow}>
+              <TouchableOpacity style={styles.photoBox} onPress={pickImage} activeOpacity={0.8}>
+                {form.imagen ? (
+                  <Image source={{ uri: form.imagen }} style={styles.photoImg} />
+                ) : (
+                  <FontAwesome name="camera" size={26} color={GREEN_MAIN} />
+                )}
+              </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.label}>Imagen (opcional)</Text>
+                <TouchableOpacity onPress={pickImage}>
+                  <Text style={styles.photoLink}>
+                    {form.imagen ? 'Cambiar imagen' : 'Elegir de la galería'}
+                  </Text>
+                </TouchableOpacity>
+                {!!form.imagen && (
+                  <TouchableOpacity onPress={removeImage}>
+                    <Text style={[styles.photoLink, { color: '#DC2626' }]}>Quitar</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
             <Field
               label="Nombre"
               icon="user"
@@ -756,7 +836,7 @@ export default function Proveedores({ navigation }) {
     ]).start();
 
     // Movimiento sutil del banner
-    Animated.loop(
+    const floatLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(float, {
           toValue: 1,
@@ -771,8 +851,8 @@ export default function Proveedores({ navigation }) {
           useNativeDriver: true,
         }),
       ])
-    ).start();
-    Animated.loop(
+    );
+    const zoomLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(zoom, {
           toValue: 1,
@@ -787,7 +867,13 @@ export default function Proveedores({ navigation }) {
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
+    floatLoop.start();
+    zoomLoop.start();
+    return () => {
+      floatLoop.stop();
+      zoomLoop.stop();
+    };
   }, []);
 
   const showToast = useCallback((msg, type = 'ok') => {
@@ -1299,6 +1385,8 @@ const styles = StyleSheet.create({
       : {}),
   },
   cardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  avatar: { width: 54, height: 54, borderRadius: 14, backgroundColor: '#E6F4EA' },
+  avatarEmpty: { justifyContent: 'center', alignItems: 'center' },
   tag: {
     alignSelf: 'flex-start',
     paddingHorizontal: 10,
@@ -1398,6 +1486,23 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   bannerText: { color: '#B91C1C', fontSize: 12, fontWeight: '600', flex: 1 },
+
+  // Selector de imagen
+  photoRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14 },
+  photoBox: {
+    width: 80,
+    height: 80,
+    borderRadius: 16,
+    backgroundColor: '#E6F4EA',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: '#BBF7D0',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  photoImg: { width: '100%', height: '100%' },
+  photoLink: { color: GREEN_MAIN, fontWeight: '700', fontSize: 13, marginTop: 4 },
 
   label: { fontSize: 12, fontWeight: '700', color: '#1F2937', marginBottom: 4 },
   inputBox: {
