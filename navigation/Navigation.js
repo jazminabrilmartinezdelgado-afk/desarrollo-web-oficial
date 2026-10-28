@@ -8,6 +8,7 @@ import { auth, isFirebaseConfigured } from '../src/config/firebaseConfig';
 import Login from '../screens/Login';
 import SignUp from '../screens/SignUp';
 import Home from '../screens/Home';
+import Proveedores from '../screens/Proveedores';
 
 const Stack = createStackNavigator();
 
@@ -50,7 +51,8 @@ export default function Navigation() {
       </View>
     );
   }
-// ---------- NAVEGACIÓN PRINCIPAL CONDICIONAL ----------
+
+  // ---------- NAVEGACIÓN PRINCIPAL CONDICIONAL ----------
   return (
     <View style={styles.container}>
       <NavigationContainer>
@@ -59,11 +61,29 @@ export default function Navigation() {
             headerStyle: { backgroundColor: '#1b4d3e' },
             headerTintColor: '#ffffff',
             headerTitleStyle: { fontWeight: 'bold' },
+            // CORREGIDO: el card del stack necesita altura explícita en web para que el scroll interno funcione
+            cardStyle: {
+              flex: 1,
+              ...(Platform.OS === 'web' ? { height: '100%', overflow: 'visible' } : {}),
+            },
           }}
         >
           {user ? (
-            <Stack.Screen name="Home" component={Home} options={{ title: 'Inicio' }} />
+            // Pantallas disponibles solo con sesión iniciada
+            <>
+              <Stack.Screen
+                name="Home"
+                component={Home}
+                options={{ title: 'Inicio', headerShown: false }}
+              />
+              <Stack.Screen
+                name="Proveedores"
+                component={Proveedores}
+                options={{ title: 'Proveedores', headerShown: false }}
+              />
+            </>
           ) : (
+            // Pantallas de acceso (sin sesión)
             <>
               <Stack.Screen name="Login" component={Login} options={{ title: 'Iniciar sesión', headerShown: false }} />
               <Stack.Screen name="SignUp" component={SignUp} options={{ title: 'Registro', headerShown: false }} />
@@ -77,9 +97,10 @@ export default function Navigation() {
 
 // ---------- ESTILOS Y ADAPTABILIDAD WEB/MÓVIL ----------
 const styles = StyleSheet.create({
+  // CORREGIDO: se quitó width '100vw' (generaba barra horizontal) y se agregó overflow hidden
   container: {
     flex: 1,
-    ...(Platform.OS === 'web' ? { height: '100vh', width: '100vw' } : {}),
+    ...(Platform.OS === 'web' ? { height: '100vh', width: '100%', overflow: 'hidden' } : {}),
   },
   center: { 
     flex: 1, 

@@ -1,10 +1,11 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   initializeAuth, 
   getAuth, 
   getReactNativePersistence, 
   browserLocalPersistence 
 } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
@@ -20,7 +21,8 @@ const firebaseConfig = {
 };
 
 // ========== 2. INICIALIZACIÓN DE LA APLICACIÓN FIREBASE ==========
-const app = initializeApp(firebaseConfig);
+// getApps() evita crear la app dos veces con el recargado en caliente (Fast Refresh)
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 let auth;
 try {
@@ -38,7 +40,10 @@ try {
   auth = getAuth(app);
 }
 
-// ========== 5. VALIDACIÓN Y EXPORTACIÓN DE MÓDULOS ==========
+// ========== 5. BASE DE DATOS FIRESTORE (usada por Proveedores) ==========
+const db = getFirestore(app);
+
+// ========== 6. VALIDACIÓN Y EXPORTACIÓN DE MÓDULOS ==========
 const isFirebaseConfigured = Boolean(firebaseConfig.apiKey);
 
-export { auth, isFirebaseConfigured };
+export { auth, db, isFirebaseConfigured };
