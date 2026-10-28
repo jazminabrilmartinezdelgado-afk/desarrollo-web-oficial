@@ -52,6 +52,9 @@ export default function Navigation() {
     );
   }
 
+  // Solo entra a Home quien tiene sesión Y verificó su correo con el enlace
+  const isVerified = Boolean(user && user.emailVerified);
+
   // ---------- NAVEGACIÓN PRINCIPAL CONDICIONAL ----------
   return (
     <View style={styles.container}>
@@ -68,7 +71,7 @@ export default function Navigation() {
             },
           }}
         >
-          {user ? (
+          {isVerified ? (
             // Pantallas disponibles solo con sesión iniciada
             <>
               <Stack.Screen

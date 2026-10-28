@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -22,6 +21,8 @@ import { FontAwesome } from '@expo/vector-icons';
 import {
   createUserWithEmailAndPassword,
   updateProfile,
+  sendEmailVerification,
+  signOut,
 } from 'firebase/auth';
 import { auth } from '../src/config/firebaseConfig';
 import Svg, {
@@ -141,24 +142,24 @@ const getPasswordStrength = (password) => {
   };
 };
 
-const topBand = (start, end, width) =>
+const topBand = (start, end, sw) =>
   `M0,${80 + start}
-   C${width * 0.25},${15 + start}
-   ${width * 0.7},${95 + end}
-   ${width},${120 + end}
-   L${width},${148 + end}
-   C${width * 0.68},${123 + end}
-   ${width * 0.28},${73 + start}
+   C${sw * 0.25},${15 + start}
+   ${sw * 0.7},${95 + end}
+   ${sw},${120 + end}
+   L${sw},${148 + end}
+   C${sw * 0.68},${123 + end}
+   ${sw * 0.28},${73 + start}
    0,${136 + start} Z`;
 
-const footBand = (start, end, width) =>
+const footBand = (start, end, sw) =>
   `M0,${55 + start}
-   C${width * 0.3},${105 + start}
-   ${width * 0.68},${25 + end}
-   ${width},${70 + end}
-   L${width},${90 + end}
-   C${width * 0.68},${65 + end}
-   ${width * 0.3},${145 + start}
+   C${sw * 0.3},${105 + start}
+   ${sw * 0.68},${25 + end}
+   ${sw},${70 + end}
+   L${sw},${90 + end}
+   C${sw * 0.68},${65 + end}
+   ${sw * 0.3},${145 + start}
    0,${95 + start} Z`;
 
 // ============================================================
@@ -379,6 +380,12 @@ export default function SignUp({ navigation }) {
   const { width, height } = useWindowDimensions();
 
   const compact = height < 700;
+
+  // Ancho real de la columna (igual que en Login) + margen para que
+  // las olas se muevan sin mostrar bordes
+  const W = Math.min(width || 400, COLUMN_MAX);
+  const PAD = 24;
+  const sw = W + PAD * 2;
   const logoH = compact ? 80 : 100;
 
   const [firstName, setFirstName] = useState('');
@@ -408,6 +415,10 @@ export default function SignUp({ navigation }) {
       message,
     });
   };
+
+  // Modal de éxito: aviso de verificación enviada
+  const [successVisible, setSuccessVisible] = useState(false);
+  const [sentTo, setSentTo] = useState('');
 
   const closeMessage = () => {
     setErrorModal((prev) => ({
@@ -730,9 +741,17 @@ export default function SignUp({ navigation }) {
         );
       }
 
-      // No se muestra modal de éxito.
-      // No se cambia de pantalla automáticamente.
+      // ENLACE DE VERIFICACIÓN: Firebase envía un correo con un link.
+      // Mientras no lo abra, Navigation no deja entrar a Home.
+      try {
+        await sendEmailVerification(credential.user);
+      } catch (verifyError) {
+        console.error('No se pudo enviar la verificación:', verifyError);
+      }
+
+      setSentTo(cleanEmail);
       setErrors({});
+      setSuccessVisible(true);
     } catch (error) {
       console.error(
         'Error de registro:',
@@ -803,14 +822,25 @@ export default function SignUp({ navigation }) {
     }
   };
 
+  // Al cerrar el modal de éxito: cerrar sesión (aún sin verificar) e ir a Login
+  const closeSuccess = async () => {
+    setSuccessVisible(false);
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.error('Error al cerrar sesión:', e);
+    }
+    navigation.navigate('Login');
+  };
+
   const driftX = waveDrift.interpolate({
     inputRange: [0, 1],
-    outputRange: [-8, 8],
+    outputRange: [-PAD * 0.7, PAD * 0.7],
   });
 
   const driftXInv = waveDrift.interpolate({
     inputRange: [0, 1],
-    outputRange: [8, -8],
+    outputRange: [PAD * 0.7, -PAD * 0.7],
   });
 
   return (
@@ -874,37 +904,39 @@ export default function SignUp({ navigation }) {
                 {
                   opacity: headerAnim,
                   transform: [{ translateX: driftX }],
+                  left: -PAD,
+                  width: sw,
                 },
               ]}
             >
               <Svg
-                width="100%"
+                width={sw}
                 height={TOP_H}
-                viewBox={`0 0 ${width} ${TOP_H}`}
+                viewBox={`0 0 ${sw} ${TOP_H}`}
               >
                 <Path
-                  d={topBand(-62, -40, width)}
+                  d={topBand(-62, -40, sw)}
                   fill={GREEN_DARK}
                   opacity={0.92}
                 />
 
                 <Path
-                  d={topBand(-40, -7, width)}
+                  d={topBand(-40, -7, sw)}
                   fill={GREEN_MAIN}
                 />
 
                 <Path
-                  d={topBand(-7, 0, width)}
+                  d={topBand(-7, 0, sw)}
                   fill={LIME}
                 />
 
                 <Path
-                  d={`M0,${TOP_H} L0,70 C${width * 0.35},25 ${width * 0.65},85 ${width},135 L${width},${TOP_H} Z`}
+                  d={`M0,${TOP_H} L0,70 C${sw * 0.35},25 ${sw * 0.65},85 ${sw},135 L${sw},${TOP_H} Z`}
                   fill="#FFFFFF"
                 />
 
                 <Path
-                  d={`M0,100 C${width * 0.1},78 ${width * 0.22},62 ${width * 0.36},56 C${width * 0.2},84 ${width * 0.08},124 0,178 Z`}
+                  d={`M0,100 C${sw * 0.1},78 ${sw * 0.22},62 ${sw * 0.36},56 C${sw * 0.2},84 ${sw * 0.08},124 0,178 Z`}
                   fill={SUN_YELLOW}
                 />
               </Svg>
@@ -1380,36 +1412,38 @@ export default function SignUp({ navigation }) {
                 {
                   opacity: footerAnim,
                   transform: [{ translateX: driftXInv }],
+                  left: -PAD,
+                  width: sw,
                 },
               ]}
             >
               <Svg
-                width="100%"
+                width={sw}
                 height={FOOT_H}
-                viewBox={`0 0 ${width} ${FOOT_H}`}
+                viewBox={`0 0 ${sw} ${FOOT_H}`}
               >
                 <Path
-                  d={`M0,0 L${width},0 L${width},70 C${width * 0.7},25 ${width * 0.35},105 0,55 Z`}
+                  d={`M0,0 L${sw},0 L${sw},70 C${sw * 0.7},25 ${sw * 0.35},105 0,55 Z`}
                   fill="#FFFFFF"
                 />
 
                 <Path
-                  d={footBand(0, 9, width)}
+                  d={footBand(0, 9, sw)}
                   fill={LIME}
                 />
 
                 <Path
-                  d={footBand(9, 34, width)}
+                  d={footBand(9, 34, sw)}
                   fill={SUN_YELLOW}
                 />
 
                 <Path
-                  d={footBand(34, 52, width)}
+                  d={footBand(34, 52, sw)}
                   fill={GREEN_MAIN}
                 />
 
                 <Path
-                  d={footBand(52, 70, width)}
+                  d={footBand(52, 70, sw)}
                   fill={GREEN_DARK}
                   opacity={0.85}
                 />
@@ -1418,6 +1452,40 @@ export default function SignUp({ navigation }) {
           </View>
         </View>
       </ScrollView>
+
+      {/* MODAL DE ÉXITO: verificación enviada */}
+      <Modal
+        animationType="fade"
+        transparent
+        visible={successVisible}
+        onRequestClose={closeSuccess}
+        statusBarTranslucent
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={[styles.errorCircle, { backgroundColor: GREEN_MAIN }]}>
+              <FontAwesome name="envelope" size={30} color="#FFFFFF" />
+            </View>
+
+            <Text style={styles.modalTitle}>¡Revisá tu correo!</Text>
+
+            <Text style={styles.modalSubtitle}>
+              Te enviamos un enlace de verificación a{'\n'}
+              <Text style={{ fontWeight: 'bold' }}>{sentTo}</Text>
+              {'\n\n'}Abrilo para activar tu cuenta y después iniciá sesión.
+              Si no lo ves, revisá la carpeta de spam.
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: GREEN_MAIN }]}
+              onPress={closeSuccess}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.modalButtonText}>Ir a iniciar sesión</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* MODAL ÚNICAMENTE PARA ERRORES */}
       <Modal
@@ -1483,10 +1551,6 @@ const styles = StyleSheet.create({
 
   scrollContainer: {
     flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 28,
-    paddingVertical: 8,
   },
 
   column: {
@@ -1510,11 +1574,14 @@ const styles = StyleSheet.create({
 
   body: {
     flex: 1,
-    backgroundColor: 'rgba(255,255,255,0.94)',
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 28,
     paddingVertical: 18,
-    paddingHorizontal: 18,
-    borderRadius: 18,
+    // -1 para tapar la línea fina que se veía en la unión con las olas
+    marginTop: -1,
+    marginBottom: -1,
   },
 
   content: {

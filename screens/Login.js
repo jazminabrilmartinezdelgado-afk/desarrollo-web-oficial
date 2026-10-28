@@ -19,7 +19,12 @@ import {
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
+import {
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  sendEmailVerification,
+  signOut,
+} from 'firebase/auth';
 import { auth } from '../src/config/firebaseConfig';
 import Svg, {
   Path,
@@ -566,7 +571,21 @@ export default function Login({ navigation }) {
 
     setLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+
+      // Si todavía no verificó el correo: reenviar enlace y no dejar entrar
+      if (!cred.user.emailVerified) {
+        try {
+          await sendEmailVerification(cred.user);
+        } catch (e) {
+          // Puede fallar por límite de envíos; no es crítico
+        }
+        await signOut(auth);
+        showError('Tu correo aún no está verificado. Te enviamos un nuevo enlace: revisá tu bandeja de entrada o spam.');
+        setLoading(false);
+        return;
+      }
+
       if (rememberMe) await AsyncStorage.setItem(REMEMBER_KEY, email.trim());
       else await AsyncStorage.removeItem(REMEMBER_KEY);
     } catch (error) {
@@ -889,6 +908,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 28,
     paddingVertical: 8,
+    // -1 para tapar la línea fina que se ve en la unión con las olas
+    marginTop: -1,
+    marginBottom: -1,
   },
   content: {
     width: '100%',
