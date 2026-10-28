@@ -666,7 +666,7 @@ export default function SignUp({ navigation }) {
         'La contraseña es obligatoria.';
     } else if (!PASSWORD_REGEX.test(password)) {
       validationErrors.password =
-        `Mínimo ${MIN_PASSWORD} caracteres, con mayúscula, minúscula, número y un carácter especial. Sin espacios.`;
+        `Mínimo ${MIN_PASSWORD} caracteres, una mayúscula, una minúscula, un número y un carácter especial. Sin espacios.`;
     }
 
     if (!confirmPassword) {
@@ -1120,8 +1120,8 @@ export default function SignUp({ navigation }) {
 
                 {!errors.password && (
                   <Text style={styles.hintText}>
-                    Mínimo {MIN_PASSWORD} caracteres, con mayúscula,
-                    minúscula, número y un carácter especial. Sin
+                    Mínimo {MIN_PASSWORD} caracteres, una mayúscula,
+                    una minúscula, un número y un carácter especial. Sin
                     espacios.
                   </Text>
                 )}
