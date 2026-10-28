@@ -77,7 +77,6 @@ const getEmailError = (value) => {
 
 const onlyLetters = (text) => text.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]/g, '');
 
-<<<<<<< HEAD
 const getPasswordStrength = (pass) => {
   const passed = PASSWORD_RULES.filter((r) => r.test(pass)).length;
   if (!pass) return { passed: 0, label: '', color: '#E5E7EB' };
@@ -259,9 +258,6 @@ function Field({ label, icon, error, right, onFocus, onBlur, ...rest }) {
 // =========================================================================
 // PANTALLA DE REGISTRO
 // =========================================================================
-=======
-// almacena temporalmete 
->>>>>>> bad01761b0b6555f66615d2a31c22954120470ce
 export default function SignUp({ navigation }) {
   const { width, height } = useWindowDimensions();
   const compact = height < 700;
@@ -602,7 +598,6 @@ export default function SignUp({ navigation }) {
             </Animated.View>
           </View>
 
-<<<<<<< HEAD
           {/* ================= CUERPO BLANCO ================= */}
           <View style={styles.body}>
             <View style={styles.content}>
@@ -626,11 +621,6 @@ export default function SignUp({ navigation }) {
                   />
                 </Animated.View>
               </Animated.View>
-=======
-              <Image source={require('../assets/logo.png')} style={styles.logo} resizeMode="contain" />
-              <Text style={styles.title1}>Agroquímica del Valle</Text>
-              <Text style={styles.title}>Regístrate</Text>
->>>>>>> bad01761b0b6555f66615d2a31c22954120470ce
 
               <Animated.View style={[{ alignItems: 'center' }, fadeUp(titleAnim)]}>
                 <Text style={[styles.mainTitle, compact && { fontSize: 26 }]}>Crear cuenta</Text>
