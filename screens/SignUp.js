@@ -373,7 +373,7 @@ function Gradient({ id, from, to }) {
 }
 
 // ============================================================
-// PANTALLA DE REGISTRO
+// 1. PANTALLA DE REGISTRO
 // ============================================================
 
 export default function SignUp({ navigation }) {
