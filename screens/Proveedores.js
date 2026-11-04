@@ -68,6 +68,7 @@ const EMPTY_FORM = {
   estado: true,
 };
 
+// telefono de Salta
 const SALTA_PHONE_REGEX = /^\+54\s9\s387\s\d{7}$/;
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@(gmail\.com|hotmail\.com)$/i;
 const ONLY_LETTERS_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]+$/;
@@ -430,6 +431,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
 
   const removeImage = () => setForm((f) => ({ ...f, imagen: '' }));
 
+  // Mantiene el prefijo
   const handlePhoneChange = (val) => {
     const prefix = '+54 9 387 ';
     if (!val.startsWith(prefix)) {
@@ -442,6 +444,8 @@ function FormModal({ proveedor, onClose, onSaved }) {
   };
 
   const set = (key) => (value) => {
+
+    // [S4-17] Bloquea números y símbolos
     if (key === 'nombre' || key === 'apellido') {
       if (value !== '' && !ONLY_LETTERS_REGEX.test(value)) return;
     }
@@ -918,6 +922,8 @@ export default function Proveedores({ navigation }) {
     });
   }, [proveedores, search, filtro]);
 
+  // proveedores activos
+
   const activosCount = useMemo(() => proveedores.filter(isActivo).length, [proveedores]);
 
   const openNew = () => {
@@ -1101,6 +1107,8 @@ export default function Proveedores({ navigation }) {
                 Mantené actualizada la información de tus aliados estratégicos.
               </Text>
             </View>
+
+            {/* Contador animado de proveedores activos */}
 
             <View style={styles.countWrap}>
               <CountUp value={activosCount} style={styles.countNumber} />

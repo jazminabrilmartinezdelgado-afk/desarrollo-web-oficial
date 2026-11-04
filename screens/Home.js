@@ -64,6 +64,8 @@ const MODULES = [
   },
 ];
 
+// [S3-07]
+
 const COMPROMISOS = [
   {
     icon: 'leaf',
@@ -100,7 +102,7 @@ function Gradient({ id, from, to, x2 = '0', y2 = '1', fromOpacity = 1, toOpacity
 }
 
 // =========================================================================
-// APARICIÓN AL HACER SCROLL (fade + slide)
+// [S3-07]APARICIÓN AL HACER SCROLL (fade + slide)
 // =========================================================================
 function Reveal({ children, delay = 0, limit, style }) {
   const anim = useRef(new Animated.Value(0)).current;
@@ -268,6 +270,7 @@ export default function Home({ navigation }) {
     ).start();
   }, []);
 
+  // [S3-07] 
   const handleScroll = (e) => {
     const bottom = e.nativeEvent.contentOffset.y + viewH;
     if (bottom > maxBottom.current + 20) {
