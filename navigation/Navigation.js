@@ -9,6 +9,7 @@ import Login from '../screens/Login';
 import SignUp from '../screens/SignUp';
 import Home from '../screens/Home';
 import Proveedores from '../screens/Proveedores';
+import Perfil from '../screens/Perfil';
 
 const Stack = createStackNavigator();
 
@@ -83,6 +84,11 @@ export default function Navigation() {
                 name="Proveedores"
                 component={Proveedores}
                 options={{ title: 'Proveedores', headerShown: false }}
+              />
+              <Stack.Screen
+                name="Perfil"
+                component={Perfil}
+                options={{ title: 'Mi Perfil', headerShown: false }}
               />
             </>
           ) : (

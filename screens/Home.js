@@ -43,6 +43,7 @@ const MODULES = [
     icon: 'cubes',
     bg: '#E6F4EA',
     fg: GREEN_MAIN,
+    proximamente: true, // la pantalla todavía no existe
   },
   {
     key: 'proveedores',
@@ -61,6 +62,16 @@ const MODULES = [
     icon: 'users',
     bg: '#E0F2FE',
     fg: '#0284C7',
+    proximamente: true, // la pantalla todavía no existe
+  },
+  {
+    key: 'perfil',
+    route: 'Perfil',
+    title: 'Mi Perfil',
+    desc: 'Tus datos personales, foto y contraseña.',
+    icon: 'user-circle',
+    bg: '#F3E8FF',
+    fg: '#7E22CE',
   },
 ];
 
@@ -164,7 +175,14 @@ function ModuleCard({ item, onPress }) {
           <FontAwesome name={item.icon} size={20} color={item.fg} />
         </View>
         <View style={{ flex: 1, paddingRight: 8 }}>
-          <Text style={styles.moduleTitle}>{item.title}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={styles.moduleTitle}>{item.title}</Text>
+            {item.proximamente && (
+              <View style={styles.soonBadge}>
+                <Text style={styles.soonText}>PRÓXIMAMENTE</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.moduleDesc}>{item.desc}</Text>
         </View>
         <View style={[styles.moduleArrow, hovered && { backgroundColor: GREEN_MAIN }]}>
@@ -196,12 +214,19 @@ export default function Home({ navigation }) {
   const zoom = useRef(new Animated.Value(0)).current;
   const logoutScale = useRef(new Animated.Value(1)).current;
 
+  // Lee el nombre del usuario (se repite al volver de "Mi Perfil" por si lo editó)
   useEffect(() => {
-    const user = auth.currentUser;
-    if (user) {
+    const loadName = () => {
+      const user = auth.currentUser;
+      if (!user) return;
       const raw = user.displayName || (user.email ? user.email.split('@')[0] : '');
       setUserName(raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : '');
-    }
+    };
+    loadName();
+    return navigation.addListener('focus', loadName);
+  }, [navigation]);
+
+  useEffect(() => {
 
     // Entrada del encabezado
     Animated.timing(heroAnim, {
@@ -475,7 +500,13 @@ export default function Home({ navigation }) {
 
           {MODULES.map((m, i) => (
             <Reveal key={m.key} limit={limit} delay={i * 90} style={{ marginBottom: 12 }}>
-              <ModuleCard item={m} onPress={() => navigation.navigate(m.route)} />
+              <ModuleCard
+                item={m}
+                onPress={() => {
+                  // Los módulos sin pantalla todavía no navegan (evita el error de ruta inexistente)
+                  if (!m.proximamente) navigation.navigate(m.route);
+                }}
+              />
             </Reveal>
           ))}
 
@@ -705,6 +736,14 @@ const styles = StyleSheet.create({
   },
   moduleTitle: { fontSize: 15, fontWeight: 'bold', color: DARK, marginBottom: 2 },
   moduleDesc: { fontSize: 12, color: '#6B7280', lineHeight: 16 },
+  soonBadge: {
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    marginBottom: 2,
+  },
+  soonText: { color: '#B45309', fontSize: 8, fontWeight: '800', letterSpacing: 0.5 },
   moduleArrow: {
     width: 26,
     height: 26,

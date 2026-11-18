@@ -1,0 +1,958 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Pressable,
+  ScrollView,
+  SafeAreaView,
+  StatusBar,
+  Image,
+  Platform,
+  Animated,
+  Easing,
+  TextInput,
+  ActivityIndicator,
+} from 'react-native';
+import { FontAwesome } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
+import {
+  updateProfile,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  sendEmailVerification,
+  signOut,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
+import { auth, db } from '../src/config/firebaseConfig';
+
+// =========================================================================
+// CONSTANTES Y PALETA CORPORATIVA (misma que Home y Proveedores)
+// =========================================================================
+const GREEN_DARK = '#0d3827';
+const GREEN_MAIN = '#008A3B';
+const GOLD_YELLOW = '#CAB118';
+const GOLD_PILL = '#FACC15';
+const DARK = '#111827';
+const PAGE_BG = '#F3F7F4';
+
+// Colección de Firestore donde se guardan los datos extra del usuario
+const COLLECTION = 'usuarios';
+
+// Firestore permite 1 MB por documento: limitamos la foto en base64
+const MAX_IMAGE_BASE64 = 700000;
+
+// Mismas reglas que en el registro (SignUp)
+const NAME_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+(?:\s[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+)*$/;
+const SALTA_PHONE_PREFIX = '+54 9 387 ';
+const SALTA_PHONE_REGEX = /^\+54\s9\s387\s\d{7}$/;
+const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s])\S{8,64}$/;
+
+const PASSWORD_RULES = [
+  { key: 'len', label: '8+ caracteres', test: (p) => p.length >= 8 },
+  { key: 'upper', label: 'Mayúscula', test: (p) => /[A-Z]/.test(p) },
+  { key: 'lower', label: 'Minúscula', test: (p) => /[a-z]/.test(p) },
+  { key: 'num', label: 'Número', test: (p) => /\d/.test(p) },
+  { key: 'sym', label: 'Carácter especial', test: (p) => /[^A-Za-z0-9\s]/.test(p) },
+];
+
+const onlyLetters = (text) => text.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]/g, '');
+
+// Separa "Nombre Apellido" guardado en displayName
+const splitName = (full = '') => {
+  const parts = full.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return { nombre: parts[0] || '', apellido: '' };
+  return { nombre: parts.slice(0, -1).join(' '), apellido: parts[parts.length - 1] };
+};
+
+const getInitials = (nombre, apellido, email) => {
+  const a = (nombre || '').trim().charAt(0);
+  const b = (apellido || '').trim().charAt(0);
+  const ini = `${a}${b}`.toUpperCase();
+  return ini || (email ? email.charAt(0).toUpperCase() : '?');
+};
+
+const formatDate = (value) => {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+};
+
+const mapPasswordError = (code) => {
+  switch (code) {
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'La contraseña actual es incorrecta.';
+    case 'auth/too-many-requests':
+      return 'Demasiados intentos. Espera unos minutos.';
+    case 'auth/network-request-failed':
+      return 'Error de conexión. Intenta nuevamente.';
+    case 'auth/weak-password':
+      return 'La nueva contraseña es demasiado débil.';
+    default:
+      return 'No se pudo cambiar la contraseña.';
+  }
+};
+
+// =========================================================================
+// DEGRADADO CON SVG
+// =========================================================================
+function Gradient({ id, from, to }) {
+  return (
+    <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
+      <Defs>
+        <LinearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+          <Stop offset="0" stopColor={from} />
+          <Stop offset="1" stopColor={to} />
+        </LinearGradient>
+      </Defs>
+      <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
+    </Svg>
+  );
+}
+
+// =========================================================================
+// CAMPO DE TEXTO (mismo estilo que el formulario de Proveedores)
+// =========================================================================
+function Field({ label, icon, error, editable = true, right, ...props }) {
+  const [focused, setFocused] = useState(false);
+  const borderColor = error ? '#EF4444' : focused ? GREEN_MAIN : '#E5E7EB';
+  const backgroundColor = !editable ? '#F3F4F6' : error ? '#FEF2F2' : focused ? '#FFFFFF' : '#FAFAFA';
+
+  return (
+    <View style={{ width: '100%', marginBottom: 14 }}>
+      <Text style={styles.label}>{label}</Text>
+      <View style={[styles.inputBox, { borderColor, backgroundColor }]}>
+        <FontAwesome
+          name={icon}
+          size={16}
+          color={error ? '#EF4444' : focused ? GREEN_MAIN : '#9CA3AF'}
+          style={styles.inputIcon}
+        />
+        <TextInput
+          style={[
+            styles.input,
+            !editable && { color: '#6B7280' },
+            Platform.OS === 'web' && { outlineStyle: 'none' },
+          ]}
+          placeholderTextColor="#9CA3AF"
+          editable={editable}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          {...props}
+        />
+        {right}
+      </View>
+      {!!error && (
+        <View style={styles.errorRow}>
+          <FontAwesome name="exclamation-circle" size={12} color="#EF4444" />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+// Botón principal verde con efecto de presión
+function PrimaryButton({ title, icon, onPress, loading, variant = 'primary' }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const danger = variant === 'danger';
+  const outline = variant === 'outline';
+
+  return (
+    <Animated.View style={{ transform: [{ scale }], width: '100%' }}>
+      <Pressable
+        onPress={onPress}
+        disabled={loading}
+        onPressIn={() => Animated.spring(scale, { toValue: 0.96, useNativeDriver: true }).start()}
+        onPressOut={() =>
+          Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }).start()
+        }
+        style={[
+          styles.btn,
+          danger && styles.btnDanger,
+          outline && styles.btnOutline,
+          loading && { opacity: 0.7 },
+        ]}
+      >
+        {loading ? (
+          <ActivityIndicator color={outline ? GREEN_MAIN : '#FFFFFF'} />
+        ) : (
+          <>
+            {!!icon && (
+              <FontAwesome
+                name={icon}
+                size={15}
+                color={danger ? '#DC2626' : outline ? GREEN_MAIN : '#FFFFFF'}
+              />
+            )}
+            <Text
+              style={[
+                styles.btnText,
+                danger && { color: '#DC2626' },
+                outline && { color: GREEN_MAIN },
+              ]}
+            >
+              {title}
+            </Text>
+          </>
+        )}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// =========================================================================
+// PANTALLA MI PERFIL
+// =========================================================================
+export default function Perfil({ navigation }) {
+  const user = auth.currentUser;
+
+  // ---------- Estado de datos personales ----------
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [profile, setProfile] = useState({ nombre: '', apellido: '', telefono: '', foto: '' });
+  const [form, setForm] = useState(profile);
+  const [errors, setErrors] = useState({});
+
+  // ---------- Estado de cambio de contraseña ----------
+  const [pwdOpen, setPwdOpen] = useState(false);
+  const [pwd, setPwd] = useState({ actual: '', nueva: '', confirmar: '' });
+  const [pwdErrors, setPwdErrors] = useState({});
+  const [pwdSaving, setPwdSaving] = useState(false);
+  const [showPwd, setShowPwd] = useState(false);
+
+  // ---------- Toast ----------
+  const [toast, setToast] = useState({ msg: '', type: 'ok' });
+  const toastAnim = useRef(new Animated.Value(0)).current;
+  const toastTimer = useRef(null);
+
+  // ---------- Animación de entrada ----------
+  const enter = useRef(new Animated.Value(0)).current;
+
+  const showToast = (msg, type = 'ok') => {
+    clearTimeout(toastTimer.current);
+    setToast({ msg, type });
+    Animated.spring(toastAnim, { toValue: 1, friction: 8, useNativeDriver: true }).start();
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toastAnim, { toValue: 0, duration: 250, useNativeDriver: true }).start();
+    }, 2600);
+  };
+
+  // ---------- LECTURA: datos de Auth + documento usuarios/{uid} ----------
+  useEffect(() => {
+    Animated.timing(enter, {
+      toValue: 1,
+      duration: 600,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+
+    if (!user) return;
+    const base = splitName(user.displayName || '');
+
+    (async () => {
+      let data = {};
+      try {
+        const snap = await getDoc(doc(db, COLLECTION, user.uid));
+        if (snap.exists()) data = snap.data();
+      } catch (err) {
+        console.error('Error al leer el perfil:', err);
+        showToast('No se pudieron cargar algunos datos del perfil', 'error');
+      }
+      const loaded = {
+        nombre: data.nombre || base.nombre,
+        apellido: data.apellido || base.apellido,
+        telefono: data.telefono || '',
+        foto: data.foto || '',
+      };
+      setProfile(loaded);
+      setForm(loaded);
+      setLoading(false);
+    })();
+
+    return () => clearTimeout(toastTimer.current);
+  }, []);
+
+  // ---------- EDICIÓN DE CAMPOS ----------
+  const setField = (key) => (value) => {
+    let v = value;
+    if (key === 'nombre' || key === 'apellido') v = onlyLetters(value);
+    if (key === 'telefono') {
+      // Mantiene el prefijo de Salta y acepta solo 7 dígitos
+      if (!value) v = '';
+      else {
+        const digits = value.replace(SALTA_PHONE_PREFIX, '').replace(/\D/g, '').slice(0, 7);
+        v = SALTA_PHONE_PREFIX + digits;
+      }
+    }
+    setForm((f) => ({ ...f, [key]: v }));
+    if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
+  };
+
+  const startEdit = () => {
+    setForm({ ...profile, telefono: profile.telefono || SALTA_PHONE_PREFIX });
+    setErrors({});
+    setEditing(true);
+  };
+
+  const cancelEdit = () => {
+    setForm(profile);
+    setErrors({});
+    setEditing(false);
+  };
+
+  const validate = () => {
+    const e = {};
+    const n = form.nombre.trim();
+    const a = form.apellido.trim();
+    const t = form.telefono.trim();
+
+    if (!n) e.nombre = 'El nombre es obligatorio.';
+    else if (n.length < 2) e.nombre = 'El nombre debe tener al menos 2 letras.';
+    else if (!NAME_REGEX.test(n)) e.nombre = 'Solo letras y espacios.';
+
+    if (!a) e.apellido = 'El apellido es obligatorio.';
+    else if (a.length < 2) e.apellido = 'El apellido debe tener al menos 2 letras.';
+    else if (!NAME_REGEX.test(a)) e.apellido = 'Solo letras y espacios.';
+
+    // Teléfono opcional: si se completa, debe ser de Salta
+    if (t && t !== SALTA_PHONE_PREFIX.trim() && !SALTA_PHONE_REGEX.test(t)) {
+      e.telefono = 'Debe ser un número de Salta (+54 9 387 XXXXXXX)';
+    }
+    return e;
+  };
+
+  // ---------- ACTUALIZACIÓN: Auth (displayName) + Firestore ----------
+  const saveProfile = async () => {
+    const e = validate();
+    setErrors(e);
+    if (Object.keys(e).length) return;
+
+    setSaving(true);
+    const tel = SALTA_PHONE_REGEX.test(form.telefono.trim()) ? form.telefono.trim() : '';
+    const data = {
+      nombre: form.nombre.trim(),
+      apellido: form.apellido.trim(),
+      telefono: tel,
+      foto: form.foto,
+    };
+
+    try {
+      await updateProfile(user, { displayName: `${data.nombre} ${data.apellido}` });
+      await setDoc(
+        doc(db, COLLECTION, user.uid),
+        { ...data, email: user.email, fechaActualizacion: serverTimestamp() },
+        { merge: true }
+      );
+      setProfile(data);
+      setForm(data);
+      setEditing(false);
+      showToast('Perfil actualizado correctamente');
+    } catch (err) {
+      console.error('Error al guardar el perfil:', err);
+      showToast('No se pudo guardar el perfil', 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ---------- FOTO DE PERFIL (expo-image-picker) ----------
+  const pickImage = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        showToast('Necesitamos permiso para acceder a tus fotos', 'error');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.3,
+        base64: true,
+      });
+      if (res.canceled) return;
+
+      const asset = res.assets[0];
+      if (!asset.base64 || asset.base64.length > MAX_IMAGE_BASE64) {
+        showToast('La imagen es muy pesada. Elegí otra más liviana.', 'error');
+        return;
+      }
+      const foto = `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`;
+
+      // La foto se guarda al instante, sin necesidad de pulsar "Guardar"
+      await setDoc(
+        doc(db, COLLECTION, user.uid),
+        { foto, email: user.email, fechaActualizacion: serverTimestamp() },
+        { merge: true }
+      );
+      setProfile((p) => ({ ...p, foto }));
+      setForm((f) => ({ ...f, foto }));
+      showToast('Foto de perfil actualizada');
+    } catch (err) {
+      console.error('Error con la foto de perfil:', err);
+      showToast('No se pudo actualizar la foto', 'error');
+    }
+  };
+
+  // ---------- CAMBIO DE CONTRASEÑA ----------
+  const setPwdField = (key) => (value) => {
+    setPwd((p) => ({ ...p, [key]: value }));
+    if (pwdErrors[key]) setPwdErrors((e) => ({ ...e, [key]: undefined }));
+  };
+
+  const changePassword = async () => {
+    const e = {};
+    if (!pwd.actual) e.actual = 'Ingrese su contraseña actual.';
+    if (!pwd.nueva) e.nueva = 'Ingrese la nueva contraseña.';
+    else if (!PASSWORD_REGEX.test(pwd.nueva)) e.nueva = 'No cumple los requisitos de seguridad.';
+    else if (pwd.nueva === pwd.actual) e.nueva = 'Debe ser distinta a la actual.';
+    if (!pwd.confirmar) e.confirmar = 'Confirme la nueva contraseña.';
+    else if (pwd.nueva !== pwd.confirmar) e.confirmar = 'Las contraseñas no coinciden.';
+    setPwdErrors(e);
+    if (Object.keys(e).length) return;
+
+    setPwdSaving(true);
+    try {
+      // Firebase exige volver a autenticarse antes de cambiar la contraseña
+      const credential = EmailAuthProvider.credential(user.email, pwd.actual);
+      await reauthenticateWithCredential(user, credential);
+      await updatePassword(user, pwd.nueva);
+      setPwd({ actual: '', nueva: '', confirmar: '' });
+      setPwdOpen(false);
+      showToast('Contraseña actualizada correctamente');
+    } catch (err) {
+      console.error('Error al cambiar la contraseña:', err);
+      const msg = mapPasswordError(err.code);
+      if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setPwdErrors({ actual: msg });
+      } else {
+        showToast(msg, 'error');
+      }
+    } finally {
+      setPwdSaving(false);
+    }
+  };
+
+  // ---------- CERRAR SESIÓN ----------
+  // Navigation.js detecta el cambio de sesión y vuelve solo al Login
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error('Error al cerrar sesión:', err);
+      showToast('No se pudo cerrar la sesión', 'error');
+    }
+  };
+
+  const resendVerification = async () => {
+    try {
+      await sendEmailVerification(user);
+      showToast('Te enviamos un nuevo enlace de verificación');
+    } catch (err) {
+      showToast('No se pudo enviar el enlace', 'error');
+    }
+  };
+
+  const fullName = `${profile.nombre} ${profile.apellido}`.trim() || 'Usuario';
+  const initials = getInitials(profile.nombre, profile.apellido, user?.email);
+
+  const fadeUp = (from = 24) => ({
+    opacity: enter,
+    transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [from, 0] }) }],
+  });
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar backgroundColor={GREEN_DARK} barStyle="dark-content" translucent />
+
+      {/* ================= BARRA SUPERIOR ================= */}
+      <View style={styles.topBar}>
+        <TouchableOpacity style={styles.menuBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+          <FontAwesome name="arrow-left" size={16} color={GREEN_MAIN} />
+        </TouchableOpacity>
+        <Image source={require('../assets/logo.png')} style={styles.topLogo} resizeMode="contain" />
+        <Text style={styles.topTitle} numberOfLines={1}>
+          Mi Perfil
+        </Text>
+      </View>
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.container}>
+          {/* ================= TARJETA PRINCIPAL ================= */}
+          <Animated.View style={[styles.hero, fadeUp(-20)]}>
+            <Gradient id="perfilHero" from="#0a2e20" to="#0f6b34" />
+
+            <Pressable onPress={pickImage} style={styles.avatarWrap}>
+              {profile.foto ? (
+                <Image source={{ uri: profile.foto }} style={styles.avatarImg} />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarText}>{initials}</Text>
+                </View>
+              )}
+              <View style={styles.cameraBadge}>
+                <FontAwesome name="camera" size={12} color={GREEN_DARK} />
+              </View>
+            </Pressable>
+
+            <Text style={styles.heroName}>{loading ? 'Cargando…' : fullName}</Text>
+            <Text style={styles.heroEmail}>{user?.email}</Text>
+
+            <View style={[styles.pill, !user?.emailVerified && { backgroundColor: '#FCA5A5' }]}>
+              <FontAwesome
+                name={user?.emailVerified ? 'check-circle' : 'exclamation-circle'}
+                size={11}
+                color={GREEN_DARK}
+              />
+              <Text style={styles.pillText}>
+                {user?.emailVerified ? 'CORREO VERIFICADO' : 'CORREO SIN VERIFICAR'}
+              </Text>
+            </View>
+          </Animated.View>
+
+          {!user?.emailVerified && (
+            <TouchableOpacity onPress={resendVerification} style={styles.warnBox}>
+              <Text style={styles.warnText}>Reenviar enlace de verificación</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* ================= DATOS PERSONALES ================= */}
+          <Animated.View style={[styles.card, fadeUp()]}>
+            <View style={styles.cardHead}>
+              <View style={styles.cardIcon}>
+                <FontAwesome name="user" size={16} color={GREEN_MAIN} />
+              </View>
+              <Text style={styles.cardTitle}>Datos personales</Text>
+              {!editing && !loading && (
+                <TouchableOpacity onPress={startEdit} style={styles.editBtn}>
+                  <FontAwesome name="pencil" size={12} color={GREEN_MAIN} />
+                  <Text style={styles.editText}>Editar</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {loading ? (
+              <ActivityIndicator color={GREEN_MAIN} style={{ marginVertical: 20 }} />
+            ) : editing ? (
+              <>
+                <Field
+                  label="Nombre"
+                  icon="user"
+                  value={form.nombre}
+                  onChangeText={setField('nombre')}
+                  error={errors.nombre}
+                  maxLength={40}
+                />
+                <Field
+                  label="Apellido"
+                  icon="user-o"
+                  value={form.apellido}
+                  onChangeText={setField('apellido')}
+                  error={errors.apellido}
+                  maxLength={40}
+                />
+                <Field
+                  label="Teléfono (opcional)"
+                  icon="phone"
+                  value={form.telefono}
+                  onChangeText={setField('telefono')}
+                  error={errors.telefono}
+                  keyboardType="phone-pad"
+                />
+                <Field label="Correo electrónico" icon="envelope" value={user?.email || ''} editable={false} />
+
+                <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <PrimaryButton title="Cancelar" variant="outline" onPress={cancelEdit} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <PrimaryButton title="Guardar" icon="check" onPress={saveProfile} loading={saving} />
+                  </View>
+                </View>
+              </>
+            ) : (
+              <>
+                <InfoRow icon="user" label="Nombre" value={profile.nombre || '—'} />
+                <InfoRow icon="user-o" label="Apellido" value={profile.apellido || '—'} />
+                <InfoRow icon="phone" label="Teléfono" value={profile.telefono || 'Sin cargar'} />
+                <InfoRow icon="envelope" label="Correo" value={user?.email || '—'} />
+                <InfoRow
+                  icon="calendar"
+                  label="Miembro desde"
+                  value={formatDate(user?.metadata?.creationTime)}
+                />
+                <InfoRow
+                  icon="clock-o"
+                  label="Último ingreso"
+                  value={formatDate(user?.metadata?.lastSignInTime)}
+                  last
+                />
+              </>
+            )}
+          </Animated.View>
+
+          {/* ================= SEGURIDAD ================= */}
+          <Animated.View style={[styles.card, fadeUp(32)]}>
+            <View style={styles.cardHead}>
+              <View style={styles.cardIcon}>
+                <FontAwesome name="lock" size={16} color={GREEN_MAIN} />
+              </View>
+              <Text style={styles.cardTitle}>Seguridad</Text>
+            </View>
+
+            {!pwdOpen ? (
+              <PrimaryButton
+                title="Cambiar contraseña"
+                icon="key"
+                variant="outline"
+                onPress={() => setPwdOpen(true)}
+              />
+            ) : (
+              <>
+                <Field
+                  label="Contraseña actual"
+                  icon="lock"
+                  value={pwd.actual}
+                  onChangeText={setPwdField('actual')}
+                  error={pwdErrors.actual}
+                  secureTextEntry={!showPwd}
+                  autoCapitalize="none"
+                  right={
+                    <TouchableOpacity onPress={() => setShowPwd((s) => !s)} hitSlop={10}>
+                      <FontAwesome name={showPwd ? 'eye-slash' : 'eye'} size={16} color="#9CA3AF" />
+                    </TouchableOpacity>
+                  }
+                />
+                <Field
+                  label="Nueva contraseña"
+                  icon="key"
+                  value={pwd.nueva}
+                  onChangeText={setPwdField('nueva')}
+                  error={pwdErrors.nueva}
+                  secureTextEntry={!showPwd}
+                  autoCapitalize="none"
+                  maxLength={64}
+                />
+
+                {/* Requisitos de la contraseña en vivo */}
+                <View style={styles.rules}>
+                  {PASSWORD_RULES.map((r) => {
+                    const ok = r.test(pwd.nueva);
+                    return (
+                      <View key={r.key} style={[styles.rule, ok && styles.ruleOk]}>
+                        <FontAwesome name={ok ? 'check' : 'circle-o'} size={10} color={ok ? GREEN_MAIN : '#9CA3AF'} />
+                        <Text style={[styles.ruleText, ok && { color: GREEN_MAIN }]}>{r.label}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+
+                <Field
+                  label="Confirmar nueva contraseña"
+                  icon="key"
+                  value={pwd.confirmar}
+                  onChangeText={setPwdField('confirmar')}
+                  error={pwdErrors.confirmar}
+                  secureTextEntry={!showPwd}
+                  autoCapitalize="none"
+                  maxLength={64}
+                />
+
+                <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <PrimaryButton
+                      title="Cancelar"
+                      variant="outline"
+                      onPress={() => {
+                        setPwdOpen(false);
+                        setPwd({ actual: '', nueva: '', confirmar: '' });
+                        setPwdErrors({});
+                      }}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <PrimaryButton title="Actualizar" icon="check" onPress={changePassword} loading={pwdSaving} />
+                  </View>
+                </View>
+              </>
+            )}
+          </Animated.View>
+
+          {/* ================= CERRAR SESIÓN ================= */}
+          <Animated.View style={fadeUp(40)}>
+            <PrimaryButton title="Cerrar sesión" icon="sign-out" variant="danger" onPress={handleLogout} />
+          </Animated.View>
+        </View>
+
+        {/* Barra inferior institucional */}
+        <View style={styles.bottomBar}>
+          <View style={{ flex: 1, backgroundColor: GOLD_YELLOW }} />
+          <View style={{ flex: 4, backgroundColor: GREEN_DARK }} />
+        </View>
+      </ScrollView>
+
+      {/* ================= TOAST ================= */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.toast,
+          toast.type === 'error' && { backgroundColor: '#B91C1C' },
+          {
+            opacity: toastAnim,
+            transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) }],
+          },
+        ]}
+      >
+        <FontAwesome
+          name={toast.type === 'error' ? 'exclamation-circle' : 'check-circle'}
+          size={16}
+          color="#FFFFFF"
+        />
+        <Text style={styles.toastText}>{toast.msg}</Text>
+      </Animated.View>
+    </SafeAreaView>
+  );
+}
+
+// Fila de dato (modo lectura)
+function InfoRow({ icon, label, value, last }) {
+  return (
+    <View style={[styles.infoRow, last && { borderBottomWidth: 0 }]}>
+      <FontAwesome name={icon} size={14} color="#9CA3AF" style={{ width: 22 }} />
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue} numberOfLines={1}>
+        {value}
+      </Text>
+    </View>
+  );
+}
+
+// =========================================================================
+// ESTILOS
+// =========================================================================
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: PAGE_BG,
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
+    ...(Platform.OS === 'web' ? { height: '100vh', overflow: 'hidden' } : {}),
+  },
+  scroll: { flex: 1, ...(Platform.OS === 'web' ? { height: '100%', minHeight: 0 } : {}) },
+  scrollContent: { flexGrow: 1 },
+  container: {
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 24,
+    gap: 16,
+  },
+
+  // ---------- Barra superior ----------
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FBFDFB',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  menuBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#E6F4EA',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  topLogo: { width: 32, height: 32 },
+  topTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: DARK },
+
+  // ---------- Tarjeta principal ----------
+  hero: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    alignItems: 'center',
+    paddingVertical: 26,
+    paddingHorizontal: 20,
+    backgroundColor: GREEN_DARK,
+  },
+  avatarWrap: {
+    width: 104,
+    height: 104,
+    marginBottom: 14,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  avatarImg: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+  },
+  avatarFallback: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarText: { color: '#FFFFFF', fontSize: 34, fontWeight: '800' },
+  cameraBadge: {
+    position: 'absolute',
+    right: 2,
+    bottom: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: GOLD_PILL,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroName: { color: '#FFFFFF', fontSize: 22, fontWeight: '800', textAlign: 'center' },
+  heroEmail: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 2, marginBottom: 12 },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: GOLD_PILL,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  pillText: { color: GREEN_DARK, fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+  warnBox: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    padding: 12,
+    alignItems: 'center',
+  },
+  warnText: { color: '#B45309', fontWeight: '700', fontSize: 13 },
+
+  // ---------- Tarjetas ----------
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 18,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+  },
+  cardHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
+  cardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#E6F4D7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cardTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: DARK },
+  editBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#E6F4EA',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 10,
+  },
+  editText: { color: GREEN_MAIN, fontWeight: '700', fontSize: 12 },
+
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 11,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  infoLabel: { fontSize: 13, color: '#6B7280', width: 120 },
+  infoValue: { flex: 1, fontSize: 13, color: DARK, fontWeight: '600', textAlign: 'right' },
+
+  // ---------- Campos ----------
+  label: { fontSize: 12, fontWeight: '700', color: '#1F2937', marginBottom: 4 },
+  inputBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 46,
+    width: '100%',
+  },
+  inputIcon: { width: 22, marginRight: 6 },
+  input: { flex: 1, color: DARK, fontSize: 13, height: '100%' },
+  errorRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  errorText: { color: '#DC2626', fontSize: 11 },
+
+  rules: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: -6, marginBottom: 14 },
+  rule: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  ruleOk: { backgroundColor: '#E6F4EA' },
+  ruleText: { fontSize: 11, color: '#6B7280' },
+
+  // ---------- Botones ----------
+  row: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  btn: {
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: GREEN_MAIN,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  btnOutline: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: GREEN_MAIN },
+  btnDanger: { backgroundColor: '#FEE2E2', borderWidth: 1.5, borderColor: '#FCA5A5' },
+  btnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
+
+  // ---------- Toast ----------
+  toast: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 24,
+    maxWidth: 520,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: GREEN_DARK,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+    borderRadius: 14,
+  },
+  toastText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600', flex: 1 },
+
+  bottomBar: { height: 10, width: '100%', flexDirection: 'row' },
+});
