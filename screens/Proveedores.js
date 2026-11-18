@@ -127,52 +127,98 @@ function CountUp({ value, style }) {
 }
 
 // =========================================================================
-// CAMPO DE FORMULARIO ESTABLE
+// CAMPO DE FORMULARIO
+// Muestra el error cuando el usuario termina de escribir y sale del campo.
 // =========================================================================
-function Field({ label, icon, error, ...props }) {
+function Field({ label, icon, error, onBlur: onFieldBlur, ...props }) {
   const styles = useStyles();
   const { colors: c } = useTheme();
+
+  // Animación del borde y del fondo al enfocar el campo.
   const focus = useRef(new Animated.Value(0)).current;
   const [focused, setFocused] = useState(false);
 
+  // Anima el campo al entrar o salir de él.
   const animate = (to) => {
-    Animated.timing(focus, { toValue: to, duration: 200, useNativeDriver: false }).start();
+    Animated.timing(focus, {
+      toValue: to,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
   };
 
+  // El borde se pone rojo cuando hay un error.
+  // Si no hay error, utiliza el color del tema y cambia al enfocar.
   const borderColor = error
     ? '#EF4444'
-    : focus.interpolate({ inputRange: [0, 1], outputRange: [c.border, c.greenMain] });
+    : focus.interpolate({
+        inputRange: [0, 1],
+        outputRange: [c.border, c.greenMain],
+      });
+
+  // El fondo también cambia cuando el campo tiene un error.
   const backgroundColor = error
     ? (c.mode === 'dark' ? 'rgba(239,68,68,0.12)' : '#FEF2F2')
-    : focus.interpolate({ inputRange: [0, 1], outputRange: [c.surfaceAlt, c.surface] });
+    : focus.interpolate({
+        inputRange: [0, 1],
+        outputRange: [c.surfaceAlt, c.surface],
+      });
 
   return (
     <View style={{ width: '100%', marginBottom: 14 }}>
       <Text style={styles.label}>{label}</Text>
-      <Animated.View style={[styles.inputBox, { borderColor, backgroundColor }]}>
+
+      <Animated.View
+        style={[
+          styles.inputBox,
+          {
+            borderColor,
+            backgroundColor,
+          },
+        ]}
+      >
         <FontAwesome
           name={icon}
           size={16}
           color={error ? '#EF4444' : focused ? c.greenMain : '#9CA3AF'}
           style={styles.inputIcon}
         />
+
         <TextInput
-          style={[styles.input, Platform.OS === 'web' && { outlineStyle: 'none' }]}
+          style={[
+            styles.input,
+            Platform.OS === 'web' && { outlineStyle: 'none' },
+          ]}
           placeholderTextColor="#9CA3AF"
+
+          // Cuando el usuario entra al campo, activa la animación.
           onFocus={() => {
             setFocused(true);
             animate(1);
           }}
-          onBlur={() => {
+
+          // Cuando sale del campo, termina la animación
+          // y ejecuta la validación correspondiente.
+          onBlur={(event) => {
             setFocused(false);
             animate(0);
+
+            // Ejecuta la función de validación recibida desde FormModal.
+            onFieldBlur?.(event);
           }}
+
           {...props}
         />
       </Animated.View>
+
+      {/* El mensaje de error solo aparece cuando existe un error. */}
       {!!error && (
         <View style={styles.errorRow}>
-          <FontAwesome name="exclamation-circle" size={12} color="#EF4444" />
+          <FontAwesome
+            name="exclamation-circle"
+            size={12}
+            color="#EF4444"
+          />
           <Text style={styles.errorText}>{error}</Text>
         </View>
       )}
@@ -494,6 +540,64 @@ function FormModal({ proveedor, onClose, onSaved }) {
     if (banner) setBanner('');
   };
 
+  // =========================================================================
+  // VALIDACIÓN INDIVIDUAL DE CAMPOS
+  // Se ejecuta cuando el usuario termina de escribir y sale del campo.
+  // =========================================================================
+  const validateField = (key) => {
+    let error;
+
+    // Valida solamente el campo que perdió el foco.
+    switch (key) {
+      case 'nombre':
+        if (!form.nombre.trim()) {
+          error = 'El nombre es obligatorio';
+        } else if (!ONLY_LETTERS_REGEX.test(form.nombre)) {
+          error = 'No se permiten números ni símbolos';
+        }
+        break;
+
+      case 'apellido':
+        if (!form.apellido.trim()) {
+          error = 'El apellido es obligatorio';
+        } else if (!ONLY_LETTERS_REGEX.test(form.apellido)) {
+          error = 'No se permiten números ni símbolos';
+        }
+        break;
+
+      case 'telefono':
+        if (!form.telefono.replace('+54 9 387 ', '').trim()) {
+          error = 'El teléfono es obligatorio';
+        } else if (!SALTA_PHONE_REGEX.test(form.telefono)) {
+          error = 'Debe ser un número válido de Salta (+54 9 387 XXXXXXX)';
+        }
+        break;
+
+      case 'email':
+        if (!form.email.trim()) {
+          error = 'El email es obligatorio';
+        } else if (!EMAIL_REGEX.test(form.email.trim())) {
+          error = 'Debe ser un correo válido con @gmail.com o @hotmail.com';
+        }
+        break;
+
+      case 'direccion':
+        if (!form.direccion.trim()) {
+          error = 'La dirección es obligatoria';
+        }
+        break;
+
+      default:
+        break;
+    }
+
+    // Actualiza únicamente el error del campo que se está validando.
+    setErrors((prev) => ({
+      ...prev,
+      [key]: error,
+    }));
+  };
+
   const validate = () => {
     const e = {};
     if (!form.nombre.trim()) e.nombre = 'El nombre es obligatorio';
@@ -502,7 +606,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
     if (!form.apellido.trim()) e.apellido = 'El apellido es obligatorio';
     else if (!ONLY_LETTERS_REGEX.test(form.apellido)) e.apellido = 'No se permiten números ni símbolos';
 
-    if (!form.telefono.trim()) {
+    if (!form.telefono.replace('+54 9 387 ', '').trim()) {
       e.telefono = 'El teléfono es obligatorio';
     } else if (!SALTA_PHONE_REGEX.test(form.telefono)) {
       e.telefono = 'Debe ser un número válido de Salta (+54 9 387 XXXXXXX)';
@@ -675,6 +779,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
                   placeholder="Juan"
                   value={form.nombre}
                   onChangeText={set('nombre')}
+                  onBlur={() => validateField('nombre')}
                   error={errors.nombre}
                 />
               </View>
@@ -685,6 +790,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
                   placeholder="Pérez"
                   value={form.apellido}
                   onChangeText={set('apellido')}
+                  onBlur={() => validateField('apellido')}
                   error={errors.apellido}
                 />
               </View>
@@ -700,6 +806,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
                 keyboardType="phone-pad"
                 value={form.telefono}
                 onChangeText={handlePhoneChange}
+                onBlur={() => validateField('telefono')}
                 error={errors.telefono}
               />
             </Animated.View>
@@ -707,11 +814,12 @@ function FormModal({ proveedor, onClose, onSaved }) {
               <Field
                 label="Email"
                 icon="envelope"
-                placeholder="contacto@gmail.com"
+                placeholder="ejemplo@gmail.com / ejemplo@hotmail.com"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={form.email}
                 onChangeText={set('email')}
+                onBlur={() => validateField('email')}
                 error={errors.email}
               />
               <Field
@@ -720,6 +828,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
                 placeholder="Calle, número, localidad"
                 value={form.direccion}
                 onChangeText={set('direccion')}
+                onBlur={() => validateField('direccion')}
                 error={errors.direccion}
               />
             </Animated.View>
