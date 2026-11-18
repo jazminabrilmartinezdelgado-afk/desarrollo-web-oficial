@@ -52,7 +52,10 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // const BG_IMAGE = require('../assets/campo-fondo.jpg');
 const BG_IMAGE = null;
 
-const COLUMN_MAX = 460;
+const COLUMN_MAX = 480; // mismo ancho que el panel principal
+// Curva de animación suave (sale rápido y frena despacio, sin rebotes)
+const SMOOTH = Easing.bezier(0.22, 1, 0.36, 1);
+
 const TOP_H = 190;
 const FOOT_H = 150;
 
@@ -141,12 +144,13 @@ function Leaf({ size, color, rotate, style, delay = 0 }) {
   const sway = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const loop = Animated.loop(
+    const loop = Animated.sequence([
+      Animated.delay(delay),
+      Animated.loop(
       Animated.sequence([
         Animated.timing(sway, {
           toValue: 1,
           duration: 2800,
-          delay,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
@@ -157,7 +161,8 @@ function Leaf({ size, color, rotate, style, delay = 0 }) {
           useNativeDriver: true,
         }),
       ])
-    );
+      ),
+    ]);
     loop.start();
     return () => loop.stop();
   }, []);
@@ -190,15 +195,15 @@ function Input({ icon, right, ...props }) {
   const [focused, setFocused] = useState(false);
 
   const animate = (to) => {
-    Animated.timing(focus, { toValue: to, duration: 200, useNativeDriver: false }).start();
-    Animated.spring(lift, { toValue: to, friction: 7, tension: 120, useNativeDriver: true }).start();
+    Animated.timing(focus, { toValue: to, duration: 260, easing: SMOOTH, useNativeDriver: false }).start();
+    Animated.timing(lift, { toValue: to, duration: 260, easing: SMOOTH, useNativeDriver: true }).start();
   };
 
   return (
     <Animated.View
       style={{
         width: '100%',
-        transform: [{ scale: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.015] }) }],
+        transform: [{ translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -1] }) }],
       }}
     >
       <Animated.View
@@ -428,38 +433,26 @@ export default function Login({ navigation }) {
   }, []);
 
   useEffect(() => {
-    const t = (v, delay = 0, duration = 520) =>
+    const t = (v, delay = 0, duration = 750) =>
       Animated.timing(v, {
         toValue: 1,
         duration,
         delay,
-        easing: Easing.out(Easing.cubic),
+        easing: SMOOTH,
         useNativeDriver: true,
       });
 
     Animated.parallel([
-      t(headerAnim, 0, 800),
-      t(footerAnim, 150, 800),
-      Animated.spring(logoAnim, {
-        toValue: 1,
-        friction: 5,
-        tension: 70,
-        delay: 250,
-        useNativeDriver: true,
-      }),
-      t(titleAnim, 380),
-      t(emailAnim, 480),
-      t(passAnim, 560),
-      t(optAnim, 640),
-      t(btnAnim, 720),
-      t(linkAnim, 800),
-      Animated.timing(dividerAnim, {
-        toValue: 1,
-        duration: 600,
-        delay: 600,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }),
+      t(headerAnim, 0, 1000),
+      t(footerAnim, 100, 1000),
+      t(logoAnim, 200, 900),
+      t(titleAnim, 350),
+      t(emailAnim, 450),
+      t(passAnim, 530),
+      t(optAnim, 610),
+      t(btnAnim, 690),
+      t(linkAnim, 770),
+      t(dividerAnim, 550, 800),
     ]).start();
 
     // Flotación del logo
@@ -542,7 +535,7 @@ export default function Login({ navigation }) {
   const showError = (msg) => {
     setErrorMessage(msg);
     errorAnim.setValue(0);
-    Animated.timing(errorAnim, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+    Animated.timing(errorAnim, { toValue: 1, duration: 380, easing: SMOOTH, useNativeDriver: true }).start();
     Animated.sequence([
       Animated.timing(shakeAnim, { toValue: 9, duration: 50, useNativeDriver: true }),
       Animated.timing(shakeAnim, { toValue: -9, duration: 50, useNativeDriver: true }),
@@ -676,7 +669,7 @@ export default function Login({ navigation }) {
                 style={{
                   alignItems: 'center',
                   opacity: logoAnim,
-                  transform: [{ scale: logoAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }],
+                  transform: [{ scale: logoAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
                 }}
               >
                 <Animated.View
@@ -698,7 +691,7 @@ export default function Login({ navigation }) {
                 <Animated.View
                   style={[
                     styles.dividerContainer,
-                    { width: dividerAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 80] }) },
+                    { width: 80, transform: [{ scaleX: dividerAnim }] },
                   ]}
                 >
                   <View style={styles.dividerGreen} />
@@ -772,7 +765,15 @@ export default function Login({ navigation }) {
                 </Animated.View>
 
                 {/* BOTÓN CON DEGRADADO, BRILLO Y ANIMACIÓN */}
-                <Animated.View style={[fadeUp(btnAnim, 20), { transform: [{ scale: buttonScale }] }]}>
+                <Animated.View
+                  style={{
+                    opacity: btnAnim,
+                    transform: [
+                      { translateY: btnAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) },
+                      { scale: buttonScale },
+                    ],
+                  }}
+                >
                   <Pressable
                     style={[styles.primaryButton, loading && { opacity: 0.85 }]}
                     onPressIn={pressIn}

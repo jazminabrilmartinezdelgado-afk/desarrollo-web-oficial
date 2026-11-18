@@ -30,6 +30,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from '../src/config/firebaseConfig';
+import { useTheme } from '../src/theme/ThemeContext';
 import Svg, { Path, Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 
 // =========================================================================
@@ -72,6 +73,18 @@ const EMPTY_FORM = {
 const SALTA_PHONE_REGEX = /^\+54\s9\s387\s\d{7}$/;
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@(gmail\.com|hotmail\.com)$/i;
 const ONLY_LETTERS_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]+$/;
+
+// Devuelve los estilos del tema actual (se recalculan solo al cambiar de tema)
+const useStyles = () => {
+  const { colors } = useTheme();
+  return useMemo(() => makeStyles(colors), [colors]);
+};
+
+// Curva de animación suave (sin rebotes bruscos)
+const SMOOTH = Easing.bezier(0.22, 1, 0.36, 1);
+
+// Ancho máximo del formulario: mismo que el de la app (tamaño celular)
+const SHEET_MAX = 480;
 
 const isActivo = (p) => p.estado !== false && p.estado !== 'inactivo';
 
@@ -117,6 +130,8 @@ function CountUp({ value, style }) {
 // CAMPO DE FORMULARIO ESTABLE
 // =========================================================================
 function Field({ label, icon, error, ...props }) {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   const focus = useRef(new Animated.Value(0)).current;
   const [focused, setFocused] = useState(false);
 
@@ -126,10 +141,10 @@ function Field({ label, icon, error, ...props }) {
 
   const borderColor = error
     ? '#EF4444'
-    : focus.interpolate({ inputRange: [0, 1], outputRange: ['#E5E7EB', GREEN_MAIN] });
+    : focus.interpolate({ inputRange: [0, 1], outputRange: [c.border, c.greenMain] });
   const backgroundColor = error
-    ? '#FEF2F2'
-    : focus.interpolate({ inputRange: [0, 1], outputRange: ['#FAFAFA', '#FFFFFF'] });
+    ? (c.mode === 'dark' ? 'rgba(239,68,68,0.12)' : '#FEF2F2')
+    : focus.interpolate({ inputRange: [0, 1], outputRange: [c.surfaceAlt, c.surface] });
 
   return (
     <View style={{ width: '100%', marginBottom: 14 }}>
@@ -138,7 +153,7 @@ function Field({ label, icon, error, ...props }) {
         <FontAwesome
           name={icon}
           size={16}
-          color={error ? '#EF4444' : focused ? GREEN_MAIN : '#9CA3AF'}
+          color={error ? '#EF4444' : focused ? c.greenMain : '#9CA3AF'}
           style={styles.inputIcon}
         />
         <TextInput
@@ -169,6 +184,8 @@ function Field({ label, icon, error, ...props }) {
 // TARJETA DE PROVEEDOR
 // =========================================================================
 function ProveedorCard({ item, index, onEdit, onToggle }) {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   const enter = useRef(new Animated.Value(0)).current;
   const press = useRef(new Animated.Value(1)).current;
   const detail = useRef(new Animated.Value(0)).current;
@@ -226,7 +243,7 @@ function ProveedorCard({ item, index, onEdit, onToggle }) {
           : {})}
         style={[
           styles.card,
-          { borderLeftColor: activo ? GREEN_MAIN : '#9CA3AF' },
+          { borderLeftColor: activo ? c.greenMain : '#9CA3AF' },
           hovered && styles.cardHover,
         ]}
       >
@@ -236,13 +253,13 @@ function ProveedorCard({ item, index, onEdit, onToggle }) {
             <Image source={{ uri: item.imagen }} style={styles.avatar} />
           ) : (
             <View style={[styles.avatar, styles.avatarEmpty]}>
-              <FontAwesome name="truck" size={20} color={GREEN_MAIN} />
+              <FontAwesome name="truck" size={20} color={c.greenMain} />
             </View>
           )}
 
           <View style={{ flex: 1 }}>
-            <View style={[styles.tag, { backgroundColor: activo ? '#DCFCE7' : '#E5E7EB' }]}>
-              <Text style={[styles.tagText, { color: activo ? '#166534' : '#6B7280' }]}>
+            <View style={[styles.tag, { backgroundColor: activo ? (c.mode === 'dark' ? 'rgba(34,197,94,0.18)' : '#DCFCE7') : c.border }]}>
+              <Text style={[styles.tagText, { color: activo ? (c.mode === 'dark' ? '#86EFAC' : '#166534') : c.textMuted }]}>
                 {activo ? 'Activo' : 'Inactivo'}
               </Text>
             </View>
@@ -253,42 +270,42 @@ function ProveedorCard({ item, index, onEdit, onToggle }) {
 
             {!!item.email && (
               <View style={styles.infoRow}>
-                <FontAwesome name="envelope-o" size={12} color="#6B7280" style={styles.infoIcon} />
+                <FontAwesome name="envelope-o" size={12} color={c.textMuted} style={styles.infoIcon} />
                 <Text style={styles.infoText} numberOfLines={1}>
                   {item.email}
                 </Text>
               </View>
             )}
             <View style={styles.infoRow}>
-              <FontAwesome name="phone" size={14} color="#6B7280" style={styles.infoIcon} />
+              <FontAwesome name="phone" size={14} color={c.textMuted} style={styles.infoIcon} />
               <Text style={styles.infoText}>{item.telefono || 'Sin teléfono'}</Text>
             </View>
           </View>
 
           <View style={styles.iconActions}>
             <TouchableOpacity
-              style={[styles.iconBtn, { backgroundColor: '#E6F4EA' }]}
+              style={[styles.iconBtn, { backgroundColor: c.accentSoft }]}
               onPress={() => onEdit(item)}
               activeOpacity={0.8}
             >
-              <FontAwesome name="pencil" size={14} color={GREEN_MAIN} />
+              <FontAwesome name="pencil" size={14} color={c.greenMain} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.iconBtn, { backgroundColor: activo ? '#FEE2E2' : '#E6F4D7' }]}
+              style={[styles.iconBtn, { backgroundColor: activo ? (c.mode === 'dark' ? 'rgba(239,68,68,0.15)' : '#FEE2E2') : c.accentSoft }]}
               onPress={() => onToggle(item)}
               activeOpacity={0.8}
             >
               <FontAwesome
                 name={activo ? 'trash-o' : 'check'}
                 size={14}
-                color={activo ? '#DC2626' : GREEN_MAIN}
+                color={activo ? '#DC2626' : c.greenMain}
               />
             </TouchableOpacity>
           </View>
         </View>
 
         <TouchableOpacity style={styles.detailsBtn} onPress={toggleDetails} activeOpacity={0.7}>
-          <FontAwesome name={expanded ? 'eye-slash' : 'eye'} size={13} color={GREEN_MAIN} />
+          <FontAwesome name={expanded ? 'eye-slash' : 'eye'} size={13} color={c.greenMain} />
           <Text style={styles.detailsText}>{expanded ? 'Ocultar detalles' : 'Ver detalles'}</Text>
         </TouchableOpacity>
 
@@ -314,7 +331,7 @@ function ProveedorCard({ item, index, onEdit, onToggle }) {
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Estado</Text>
-              <Text style={[styles.detailValue, { color: activo ? '#166534' : '#6B7280' }]}>
+              <Text style={[styles.detailValue, { color: activo ? (c.mode === 'dark' ? '#86EFAC' : '#166534') : c.textMuted }]}>
                 {activo ? 'Activo' : 'Inactivo'}
               </Text>
             </View>
@@ -329,6 +346,8 @@ function ProveedorCard({ item, index, onEdit, onToggle }) {
 // MODAL DE FORMULARIO (Bottom Sheet)
 // =========================================================================
 function FormModal({ proveedor, onClose, onSaved }) {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   const editing = !!proveedor;
   const anim = useRef(new Animated.Value(0)).current;
   const shake = useRef(new Animated.Value(0)).current;
@@ -352,14 +371,35 @@ function FormModal({ proveedor, onClose, onSaved }) {
   const [errors, setErrors] = useState({});
   const [banner, setBanner] = useState('');
   const [saving, setSaving] = useState(false);
+  const [segW, setSegW] = useState(300);
+
+  // Entrada escalonada de cada bloque del formulario
+  const items = useRef([0, 1, 2, 3, 4, 5, 6].map(() => new Animated.Value(0))).current;
+  // Posición de la píldora del selector Activo / Inactivo
+  const estadoAnim = useRef(new Animated.Value(form.estado ? 0 : 1)).current;
 
   useEffect(() => {
-    Animated.spring(anim, {
-      toValue: 1,
-      friction: 8,
-      tension: 65,
+    Animated.spring(estadoAnim, {
+      toValue: form.estado ? 0 : 1,
+      friction: 7,
+      tension: 80,
       useNativeDriver: true,
     }).start();
+  }, [form.estado]);
+
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: 1,
+      duration: 520,
+      easing: SMOOTH,
+      useNativeDriver: true,
+    }).start();
+    Animated.stagger(
+      70,
+      items.map((v) =>
+        Animated.timing(v, { toValue: 1, duration: 520, delay: 180, easing: SMOOTH, useNativeDriver: true })
+      )
+    ).start();
 
     const shine = Animated.loop(
       Animated.sequence([
@@ -534,10 +574,20 @@ function FormModal({ proveedor, onClose, onSaved }) {
     extrapolate: 'clamp',
   });
 
+  // Helpers de animación para cada bloque
+  const fadeUpItem = (v) => ({
+    opacity: v,
+    transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }],
+  });
+  const fadeIn = (v, from = 1) => ({
+    opacity: v,
+    transform: [{ scale: v.interpolate({ inputRange: [0, 1], outputRange: [from, 1] }) }],
+  });
+
   return (
     <Modal transparent animationType="none" visible onRequestClose={close} statusBarTranslucent>
       <KeyboardAvoidingView
-        style={{ flex: 1, justifyContent: 'flex-end' }}
+        style={{ flex: 1, justifyContent: 'flex-end', alignItems: 'center' }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <Animated.View
@@ -549,132 +599,185 @@ function FormModal({ proveedor, onClose, onSaved }) {
         <Animated.View
           style={[styles.sheet, { transform: [{ translateY }, { translateX: shake }] }]}
         >
-          <View style={styles.sheetHandle} />
-
-          <View style={styles.sheetHeader}>
-            <View style={styles.sheetIcon}>
-              <FontAwesome name={editing ? 'pencil' : 'plus'} size={16} color={GREEN_MAIN} />
+          {/* ---------- ENCABEZADO VERDE ---------- */}
+          <View style={styles.sheetTop}>
+            <Gradient id="sheetTopGrad" from="#06231a" to="#13843f" x2="1" y2="1" />
+            <View pointerEvents="none" style={styles.sheetTopLeaf}>
+              <FontAwesome name="leaf" size={120} color="#FFFFFF" />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sheetTitle}>
-                {editing ? 'Actualizar proveedor' : 'Nuevo proveedor'}
-              </Text>
-              <Text style={styles.sheetSubtitle}>
-                {editing ? 'Modifica los datos y guarda' : 'Completa todos los campos obligatorios'}
-              </Text>
+            <View style={styles.sheetHandle} />
+            <View style={styles.sheetHeader}>
+              <View style={styles.sheetIcon}>
+                <FontAwesome name={editing ? 'pencil' : 'truck'} size={15} color="#0d3827" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sheetTitle}>
+                  {editing ? 'Actualizar proveedor' : 'Nuevo proveedor'}
+                </Text>
+                <Text style={styles.sheetSubtitle}>
+                  {editing ? 'Modificá los datos y guardá' : 'Completá los campos obligatorios'}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={close} style={styles.closeBtn}>
+                <FontAwesome name="times" size={15} color="#FFFFFF" />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={close} style={styles.closeBtn}>
-              <FontAwesome name="times" size={16} color="#6B7280" />
-            </TouchableOpacity>
           </View>
 
+          {/* ---------- FOTO (círculo que se superpone al encabezado) ---------- */}
+          <Animated.View style={[styles.photoWrap, fadeIn(items[0], 0.8)]}>
+            <TouchableOpacity style={styles.photoBox} onPress={pickImage} activeOpacity={0.85}>
+              {form.imagen ? (
+                <Image source={{ uri: form.imagen }} style={styles.photoImg} />
+              ) : (
+                <FontAwesome name="user" size={36} color={c.greenMain} />
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.photoBadge} onPress={pickImage}>
+              <FontAwesome name="camera" size={12} color="#0d3827" />
+            </TouchableOpacity>
+          </Animated.View>
+          <Animated.View style={[styles.photoActions, fadeIn(items[0])]}>
+            <TouchableOpacity onPress={pickImage}>
+              <Text style={styles.photoLink}>
+                {form.imagen ? 'Cambiar foto' : 'Agregar foto (opcional)'}
+              </Text>
+            </TouchableOpacity>
+            {!!form.imagen && (
+              <TouchableOpacity onPress={removeImage}>
+                <Text style={[styles.photoLink, { color: '#EF4444' }]}>Quitar</Text>
+              </TouchableOpacity>
+            )}
+          </Animated.View>
+
           {!!banner && (
-            <View style={styles.bannerMsg}>
+            <View style={[styles.bannerMsg, { marginHorizontal: 20 }]}>
               <FontAwesome name="exclamation-circle" size={14} color="#B91C1C" />
               <Text style={styles.bannerText}>{banner}</Text>
             </View>
           )}
 
           <ScrollView
+            style={styles.sheetBody}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 16 }}
+            contentContainerStyle={{ paddingBottom: 8 }}
           >
-            {/* Selector de imagen */}
-            <View style={styles.photoRow}>
-              <TouchableOpacity style={styles.photoBox} onPress={pickImage} activeOpacity={0.8}>
-                {form.imagen ? (
-                  <Image source={{ uri: form.imagen }} style={styles.photoImg} />
-                ) : (
-                  <FontAwesome name="camera" size={26} color={GREEN_MAIN} />
-                )}
-              </TouchableOpacity>
+            {/* Datos personales */}
+            <Animated.View style={fadeUpItem(items[1])}>
+              <Text style={styles.groupTitle}>DATOS PERSONALES</Text>
+            </Animated.View>
+            <Animated.View style={[styles.twoCols, fadeUpItem(items[2])]}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Imagen (opcional)</Text>
-                <TouchableOpacity onPress={pickImage}>
-                  <Text style={styles.photoLink}>
-                    {form.imagen ? 'Cambiar imagen' : 'Elegir de la galería'}
-                  </Text>
-                </TouchableOpacity>
-                {!!form.imagen && (
-                  <TouchableOpacity onPress={removeImage}>
-                    <Text style={[styles.photoLink, { color: '#DC2626' }]}>Quitar</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </View>
-
-            <Field
-              label="Nombre"
-              icon="user"
-              placeholder="Ej: Juan (solo letras)"
-              value={form.nombre}
-              onChangeText={set('nombre')}
-              error={errors.nombre}
-            />
-            <Field
-              label="Apellido"
-              icon="user"
-              placeholder="Ej: Pérez (solo letras)"
-              value={form.apellido}
-              onChangeText={set('apellido')}
-              error={errors.apellido}
-            />
-            <Field
-              label="Teléfono"
-              icon="phone"
-              placeholder="+54 9 387 XXXXXXX"
-              keyboardType="phone-pad"
-              value={form.telefono}
-              onChangeText={handlePhoneChange}
-              error={errors.telefono}
-            />
-            <Field
-              label="Email"
-              icon="envelope"
-              placeholder="contacto@gmail.com - contacto@hotmail.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={form.email}
-              onChangeText={set('email')}
-              error={errors.email}
-            />
-            <Field
-              label="Dirección"
-              icon="map-marker"
-              placeholder="Calle, número, localidad"
-              value={form.direccion}
-              onChangeText={set('direccion')}
-              error={errors.direccion}
-            />
-
-            <View style={styles.switchRow}>
-              <Text style={styles.label}>Estado inicial</Text>
-              <TouchableOpacity
-                style={[
-                  styles.switchBtn,
-                  { backgroundColor: form.estado ? '#DCFCE7' : '#FEE2E2' },
-                ]}
-                onPress={() => set('estado')(!form.estado)}
-              >
-                <FontAwesome
-                  name={form.estado ? 'check-circle' : 'ban'}
-                  size={14}
-                  color={form.estado ? GREEN_MAIN : '#DC2626'}
+                <Field
+                  label="Nombre"
+                  icon="user"
+                  placeholder="Juan"
+                  value={form.nombre}
+                  onChangeText={set('nombre')}
+                  error={errors.nombre}
                 />
-                <Text
+              </View>
+              <View style={{ flex: 1 }}>
+                <Field
+                  label="Apellido"
+                  icon="user-o"
+                  placeholder="Pérez"
+                  value={form.apellido}
+                  onChangeText={set('apellido')}
+                  error={errors.apellido}
+                />
+              </View>
+            </Animated.View>
+
+            {/* Contacto */}
+            <Animated.View style={fadeUpItem(items[3])}>
+              <Text style={styles.groupTitle}>CONTACTO</Text>
+              <Field
+                label="Teléfono"
+                icon="phone"
+                placeholder="+54 9 387 XXXXXXX"
+                keyboardType="phone-pad"
+                value={form.telefono}
+                onChangeText={handlePhoneChange}
+                error={errors.telefono}
+              />
+            </Animated.View>
+            <Animated.View style={fadeUpItem(items[4])}>
+              <Field
+                label="Email"
+                icon="envelope"
+                placeholder="contacto@gmail.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                value={form.email}
+                onChangeText={set('email')}
+                error={errors.email}
+              />
+              <Field
+                label="Dirección"
+                icon="map-marker"
+                placeholder="Calle, número, localidad"
+                value={form.direccion}
+                onChangeText={set('direccion')}
+                error={errors.direccion}
+              />
+            </Animated.View>
+
+            {/* Estado: selector deslizante */}
+            <Animated.View style={fadeUpItem(items[5])}>
+              <Text style={styles.groupTitle}>ESTADO</Text>
+              <View style={styles.segment} onLayout={(e) => setSegW(e.nativeEvent.layout.width)}>
+                <Animated.View
                   style={[
-                    styles.switchText,
-                    { color: form.estado ? '#166534' : '#DC2626' },
+                    styles.segmentPill,
+                    {
+                      width: (segW - 10) / 2,
+                      backgroundColor: form.estado ? c.greenMain : '#DC2626',
+                      transform: [
+                        {
+                          translateX: estadoAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0, (segW - 10) / 2],
+                          }),
+                        },
+                      ],
+                    },
                   ]}
-                >
-                  {form.estado ? 'Activo' : 'Inactivo'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+                />
+                <Pressable style={styles.segmentBtn} onPress={() => set('estado')(true)}>
+                  <FontAwesome
+                    name="check-circle"
+                    size={14}
+                    color={form.estado ? '#FFFFFF' : c.textMuted}
+                  />
+                  <Text style={[styles.segmentText, { color: form.estado ? '#FFFFFF' : c.textMuted }]}>
+                    Activo
+                  </Text>
+                </Pressable>
+                <Pressable style={styles.segmentBtn} onPress={() => set('estado')(false)}>
+                  <FontAwesome name="ban" size={14} color={!form.estado ? '#FFFFFF' : c.textMuted} />
+                  <Text style={[styles.segmentText, { color: !form.estado ? '#FFFFFF' : c.textMuted }]}>
+                    Inactivo
+                  </Text>
+                </Pressable>
+              </View>
+            </Animated.View>
           </ScrollView>
 
-          <Animated.View style={{ width: '100%', transform: [{ scale: buttonScale }], marginTop: 10 }}>
+          {/* ---------- BOTÓN GUARDAR ---------- */}
+          <Animated.View
+            style={[
+              styles.saveWrap,
+              {
+                opacity: items[6],
+                transform: [
+                  { translateY: items[6].interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) },
+                  { scale: buttonScale },
+                ],
+              },
+            ]}
+          >
             <Pressable
               style={[styles.saveBtn, saving && { opacity: 0.85 }]}
               onPressIn={pressIn}
@@ -683,6 +786,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
               onLayout={(e) => setBtnW(e.nativeEvent.layout.width)}
               disabled={saving}
             >
+              <Gradient id="saveGrad" from="#0B8A3E" to="#00B04F" x2="1" y2="0" />
               {!saving && (
                 <Animated.View
                   pointerEvents="none"
@@ -724,6 +828,8 @@ function FormModal({ proveedor, onClose, onSaved }) {
 // MODAL DE CONFIRMACIÓN DE BAJA
 // =========================================================================
 function ConfirmModal({ proveedor, onCancel, onConfirm, loading }) {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -749,16 +855,16 @@ function ConfirmModal({ proveedor, onCancel, onConfirm, loading }) {
           </View>
           <Text style={styles.confirmTitle}>¿Dar de baja al proveedor?</Text>
           <Text style={styles.confirmText}>
-            <Text style={{ fontWeight: 'bold', color: DARK }}>{fullName}</Text> quedará como inactivo. Podrás reactivarlo cuando quieras.
+            <Text style={{ fontWeight: 'bold', color: c.text }}>{fullName}</Text> quedará como inactivo. Podrás reactivarlo cuando quieras.
           </Text>
 
           <View style={styles.confirmRow}>
             <TouchableOpacity
-              style={[styles.confirmBtn, { backgroundColor: '#F3F4F6' }]}
+              style={[styles.confirmBtn, { backgroundColor: c.surfaceAlt }]}
               onPress={onCancel}
               disabled={loading}
             >
-              <Text style={[styles.confirmBtnText, { color: '#374151' }]}>Cancelar</Text>
+              <Text style={[styles.confirmBtnText, { color: c.text }]}>Cancelar</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.confirmBtn, { backgroundColor: '#DC2626' }]}
@@ -782,6 +888,8 @@ function ConfirmModal({ proveedor, onCancel, onConfirm, loading }) {
 // PANTALLA PRINCIPAL
 // =========================================================================
 export default function Proveedores({ navigation }) {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   const [proveedores, setProveedores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -977,7 +1085,7 @@ export default function Proveedores({ navigation }) {
   const empty = (
     <View style={styles.empty}>
       <View style={styles.emptyIcon}>
-        <FontAwesome name={search ? 'search' : 'truck'} size={32} color={GREEN_MAIN} />
+        <FontAwesome name={search ? 'search' : 'truck'} size={32} color={c.greenMain} />
       </View>
       <Text style={styles.emptyTitle}>
         {search || filtro !== 'todos' ? 'Sin resultados' : 'Aún no hay proveedores'}
@@ -992,7 +1100,7 @@ export default function Proveedores({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar backgroundColor={GREEN_DARK} barStyle="light-content" translucent />
+      <StatusBar backgroundColor={c.bg} barStyle={c.statusBar} translucent />
 
       {/* ================= BARRA SUPERIOR ================= */}
       <Animated.View
@@ -1011,7 +1119,7 @@ export default function Proveedores({ navigation }) {
           onPress={() => navigation.goBack()}
           activeOpacity={0.8}
         >
-          <FontAwesome name="arrow-left" size={16} color={GREEN_MAIN} />
+          <FontAwesome name="arrow-left" size={16} color={c.greenMain} />
         </TouchableOpacity>
         <Image source={require('../assets/logo.png')} style={styles.topLogo} resizeMode="contain" />
         <Text style={styles.topTitle} numberOfLines={1}>
@@ -1026,7 +1134,7 @@ export default function Proveedores({ navigation }) {
       <ScrollView
         style={styles.mainScrollView}
         contentContainerStyle={styles.scrollMainContainer}
-        showsVerticalScrollIndicator={true}
+        showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.container}>
@@ -1088,7 +1196,7 @@ export default function Proveedores({ navigation }) {
               preserveAspectRatio="none"
               style={styles.wave}
             >
-              <Path d="M0,70 C170,72 280,60 400,8 L400,70 Z" fill={GREEN_MAIN} />
+              <Path d="M0,70 C170,72 280,60 400,8 L400,70 Z" fill={c.greenMain} />
               <Path
                 d="M0,70 C170,72 280,60 400,8"
                 fill="none"
@@ -1162,7 +1270,7 @@ export default function Proveedores({ navigation }) {
           {/* Lista */}
           {loading ? (
             <View style={styles.loader}>
-              <ActivityIndicator size="large" color={GREEN_MAIN} />
+              <ActivityIndicator size="large" color={c.greenMain} />
             </View>
           ) : (
             <View style={{ paddingBottom: 120 }}>
@@ -1204,7 +1312,7 @@ export default function Proveedores({ navigation }) {
         pointerEvents="none"
         style={[
           styles.toast,
-          { backgroundColor: toast.type === 'error' ? '#B91C1C' : DARK },
+          { backgroundColor: toast.type === 'error' ? '#B91C1C' : GREEN_DARK },
           {
             opacity: toastAnim,
             transform: [
@@ -1244,11 +1352,12 @@ export default function Proveedores({ navigation }) {
 // =========================================================================
 // ESTILOS UNIFICADOS
 // =========================================================================
-const styles = StyleSheet.create({
+// Estilos que dependen del tema (claro / oscuro)
+const makeStyles = (c) => StyleSheet.create({
   // Altura fija en web: el ScrollView interno es el que scrollea
   safeArea: {
     flex: 1,
-    backgroundColor: PAGE_BG,
+    backgroundColor: c.bg,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     ...(Platform.OS === 'web' ? { height: '100vh', overflow: 'hidden' } : {}),
   },
@@ -1270,23 +1379,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#FBFDFB',
+    backgroundColor: c.surface,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: c.border,
     zIndex: 5,
   },
   menuBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#E6F4EA',
+    backgroundColor: c.accentSoft,
     justifyContent: 'center',
     alignItems: 'center',
   },
   topLogo: { width: 32, height: 32 },
-  topTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: DARK },
+  topTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: c.text },
   roleBadge: {
     backgroundColor: '#FEF3C7',
     paddingHorizontal: 12,
@@ -1341,24 +1450,24 @@ const styles = StyleSheet.create({
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: c.surface,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    borderColor: c.border,
     paddingHorizontal: 14,
     height: 48,
     gap: 10,
   },
-  searchInput: { flex: 1, fontSize: 14, color: DARK, paddingVertical: 0 },
+  searchInput: { flex: 1, fontSize: 14, color: c.text, paddingVertical: 0 },
   chipsRow: { flexDirection: 'row', gap: 8, marginTop: 12, marginBottom: 6 },
   chip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#EEF2EF',
+    backgroundColor: c.surfaceAlt,
   },
-  chipActive: { backgroundColor: GREEN_MAIN },
-  chipText: { fontSize: 12, fontWeight: '700', color: '#4B5563' },
+  chipActive: { backgroundColor: c.greenMain },
+  chipText: { fontSize: 12, fontWeight: '700', color: c.textSoft },
   chipTextActive: { color: '#FFFFFF' },
 
   listLabel: {
@@ -1373,7 +1482,7 @@ const styles = StyleSheet.create({
 
   // ---------- Tarjeta ----------
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: c.surface,
     borderRadius: 16,
     padding: 16,
     borderLeftWidth: 4,
@@ -1387,13 +1496,13 @@ const styles = StyleSheet.create({
       : {}),
   },
   cardHover: {
-    backgroundColor: '#F9FEFB',
+    backgroundColor: c.surfaceAlt,
     ...(Platform.OS === 'web'
       ? { transform: 'translateY(-3px)', boxShadow: '0 0 20px rgba(0, 138, 59, 0.35)' }
       : {}),
   },
   cardRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  avatar: { width: 54, height: 54, borderRadius: 14, backgroundColor: '#E6F4EA' },
+  avatar: { width: 54, height: 54, borderRadius: 14, backgroundColor: c.accentSoft },
   avatarEmpty: { justifyContent: 'center', alignItems: 'center' },
   tag: {
     alignSelf: 'flex-start',
@@ -1403,10 +1512,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   tagText: { fontSize: 11, fontWeight: '700' },
-  cardTitle: { fontSize: 17, fontWeight: '800', color: DARK, marginBottom: 6 },
+  cardTitle: { fontSize: 17, fontWeight: '800', color: c.text, marginBottom: 6 },
   infoRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 3 },
   infoIcon: { width: 16, textAlign: 'center' },
-  infoText: { fontSize: 13, color: '#4B5563', flexShrink: 1 },
+  infoText: { fontSize: 13, color: c.textSoft, flexShrink: 1 },
   iconActions: { flexDirection: 'row', gap: 8 },
   iconBtn: {
     width: 36,
@@ -1424,17 +1533,17 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingVertical: 2,
   },
-  detailsText: { color: GREEN_MAIN, fontSize: 13, fontWeight: '700' },
+  detailsText: { color: c.greenMain, fontSize: 13, fontWeight: '700' },
   detailsBox: {
     marginTop: 10,
     paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: c.border,
     gap: 8,
   },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
   detailLabel: { fontSize: 12, color: '#9CA3AF', fontWeight: '600' },
-  detailValue: { fontSize: 13, color: DARK, fontWeight: '600', flexShrink: 1, textAlign: 'right' },
+  detailValue: { fontSize: 13, color: c.text, fontWeight: '600', flexShrink: 1, textAlign: 'right' },
 
   // ---------- FAB ----------
   fabWrap: { position: 'absolute', bottom: 24, right: 22 },
@@ -1442,11 +1551,11 @@ const styles = StyleSheet.create({
     width: 58,
     height: 58,
     borderRadius: 29,
-    backgroundColor: GREEN_MAIN,
+    backgroundColor: c.greenMain,
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
-    shadowColor: GREEN_MAIN,
+    shadowColor: c.greenMain,
     shadowOffset: { width: 0, height: 5 },
     shadowOpacity: 0.4,
     shadowRadius: 10,
@@ -1456,34 +1565,86 @@ const styles = StyleSheet.create({
   // ---------- Modales ----------
   backdrop: { backgroundColor: 'rgba(0,0,0,0.55)' },
   sheet: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 22,
-    paddingTop: 12,
-    paddingBottom: 24,
-    maxHeight: '88%',
+    backgroundColor: c.surface,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    width: '100%',
+    maxWidth: SHEET_MAX, // tamaño celular también en la compu
+    maxHeight: '92%',
+    overflow: 'hidden',
+    paddingBottom: 18,
+  },
+  sheetTop: {
+    height: 128,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    overflow: 'hidden',
+  },
+  sheetTopLeaf: {
+    position: 'absolute',
+    right: -14,
+    top: -18,
+    opacity: 0.09,
+    transform: [{ rotate: '-20deg' }],
   },
   sheetHandle: {
-    width: 38,
+    width: 40,
     height: 4,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: 'rgba(255,255,255,0.45)',
     borderRadius: 2,
     alignSelf: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   sheetIcon: {
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: '#E6F4EA',
+    backgroundColor: '#FACC15',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  sheetTitle: { fontSize: 18, fontWeight: 'bold', color: DARK },
-  sheetSubtitle: { fontSize: 12, color: '#6B7280' },
-  closeBtn: { padding: 6 },
+  sheetTitle: { fontSize: 19, fontWeight: '900', color: '#FFFFFF' },
+  sheetSubtitle: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 1 },
+  closeBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sheetBody: { paddingHorizontal: 20 },
+  groupTitle: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 1.3,
+    color: c.greenMain,
+    marginBottom: 10,
+    marginTop: 4,
+  },
+  twoCols: { flexDirection: 'row', gap: 10 },
+  segment: {
+    flexDirection: 'row',
+    backgroundColor: c.surfaceAlt,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: 6,
+  },
+  segmentPill: { position: 'absolute', top: 4, bottom: 4, left: 4, borderRadius: 10 },
+  segmentBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  segmentText: { fontSize: 13, fontWeight: '800' },
+  saveWrap: { paddingHorizontal: 20, marginTop: 10 },
   bannerMsg: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1495,24 +1656,45 @@ const styles = StyleSheet.create({
   },
   bannerText: { color: '#B91C1C', fontSize: 12, fontWeight: '600', flex: 1 },
 
-  // Selector de imagen
-  photoRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 14 },
+  // Selector de imagen (círculo sobre el encabezado verde)
+  photoWrap: { alignSelf: 'center', marginTop: -50 },
   photoBox: {
-    width: 80,
-    height: 80,
-    borderRadius: 16,
-    backgroundColor: '#E6F4EA',
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: c.surfaceAlt,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: '#BBF7D0',
-    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+    borderWidth: 4,
+    borderColor: c.surface,
+    elevation: 6,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' } : {}),
   },
   photoImg: { width: '100%', height: '100%' },
-  photoLink: { color: GREEN_MAIN, fontWeight: '700', fontSize: 13, marginTop: 4 },
+  photoBadge: {
+    position: 'absolute',
+    right: 2,
+    bottom: 4,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#FACC15',
+    borderWidth: 2,
+    borderColor: c.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 16,
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  photoLink: { color: c.greenMain, fontWeight: '700', fontSize: 13 },
 
-  label: { fontSize: 12, fontWeight: '700', color: '#1F2937', marginBottom: 4 },
+  label: { fontSize: 12, fontWeight: '700', color: c.text, marginBottom: 4 },
   inputBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1523,7 +1705,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   inputIcon: { width: 22, marginRight: 6 },
-  input: { flex: 1, color: DARK, fontSize: 13, height: '100%' },
+  input: { flex: 1, color: c.text, fontSize: 13, height: '100%' },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   errorText: { color: '#DC2626', fontSize: 11 },
 
@@ -1545,15 +1727,15 @@ const styles = StyleSheet.create({
   switchText: { fontSize: 13, fontWeight: '700' },
 
   saveBtn: {
-    backgroundColor: GREEN_MAIN,
+    backgroundColor: c.greenMain,
     height: 50,
     borderRadius: 14,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
-    marginTop: 12,
+    marginTop: 0,
     elevation: 6,
-    shadowColor: GREEN_MAIN,
+    shadowColor: c.greenMain,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.35,
     shadowRadius: 10,
@@ -1590,7 +1772,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   confirmBox: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: c.surface,
     borderRadius: 22,
     padding: 24,
     alignItems: 'center',
@@ -1607,8 +1789,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  confirmTitle: { fontSize: 18, fontWeight: 'bold', color: DARK, marginBottom: 6 },
-  confirmText: { fontSize: 13, color: '#4B5563', textAlign: 'center', marginBottom: 20 },
+  confirmTitle: { fontSize: 18, fontWeight: 'bold', color: c.text, marginBottom: 6 },
+  confirmText: { fontSize: 13, color: c.textSoft, textAlign: 'center', marginBottom: 20 },
   confirmRow: { flexDirection: 'row', gap: 12, width: '100%' },
   confirmBtn: { flex: 1, height: 46, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
   confirmBtnText: { fontSize: 14, fontWeight: 'bold' },
@@ -1618,11 +1800,11 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#E6F4EA',
+    backgroundColor: c.accentSoft,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
   },
-  emptyTitle: { fontSize: 16, fontWeight: 'bold', color: DARK },
-  emptyText: { fontSize: 13, color: '#6B7280', textAlign: 'center', marginTop: 4 },
+  emptyTitle: { fontSize: 16, fontWeight: 'bold', color: c.text },
+  emptyText: { fontSize: 13, color: c.textMuted, textAlign: 'center', marginTop: 4 },
 });

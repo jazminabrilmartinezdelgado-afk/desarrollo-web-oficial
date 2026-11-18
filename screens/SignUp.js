@@ -41,7 +41,10 @@ const GREEN_MAIN = '#008A3B';
 const SUN_YELLOW = '#F5C518';
 const LIME = '#B8DD6B';
 
-const COLUMN_MAX = 460;
+const COLUMN_MAX = 480; // mismo ancho que el panel principal
+
+// Curva de animación suave (sale rápido y frena despacio, sin rebotes)
+const SMOOTH = Easing.bezier(0.22, 1, 0.36, 1);
 const TOP_H = 190;
 const FOOT_H = 150;
 
@@ -211,9 +214,10 @@ function Leaf({
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
+    // La espera inicial va fuera del bucle (antes pausaba en cada vuelta)
+    const animation = Animated.sequence([
+      Animated.delay(delay),
+      Animated.loop(Animated.sequence([
         Animated.timing(anim, {
           toValue: 1,
           duration: 1800,
@@ -226,8 +230,8 @@ function Leaf({
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
-      ])
-    );
+      ])),
+    ]);
 
     animation.start();
 
@@ -288,8 +292,12 @@ function Field({
   error,
   right,
   onBlur,
+  onFocus,
   ...inputProps
 }) {
+  // Foco propio: borde verde en lugar del marco negro del navegador
+  const [focused, setFocused] = useState(false);
+
   return (
     <View style={styles.fieldWrap}>
       <Text style={styles.label}>{label}</Text>
@@ -298,7 +306,7 @@ function Field({
         style={[
           styles.inputBox,
           {
-            borderColor: error ? '#DC2626' : '#D1D5DB',
+            borderColor: error ? '#DC2626' : focused ? GREEN_MAIN : '#D1D5DB',
           },
         ]}
       >
@@ -310,10 +318,18 @@ function Field({
         />
 
         <TextInput
-          style={styles.input}
+          // outlineStyle 'none' quita el marco negro que pone el navegador en web
+          style={[styles.input, Platform.OS === 'web' && { outlineStyle: 'none' }]}
           value={value}
           onChangeText={onChangeText}
-          onBlur={onBlur}
+          onFocus={(e) => {
+            setFocused(true);
+            onFocus && onFocus(e);
+          }}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur && onBlur(e);
+          }}
           placeholderTextColor="#9CA3AF"
           {...inputProps}
         />
@@ -468,38 +484,23 @@ export default function SignUp({ navigation }) {
 
   // Animaciones de entrada y movimiento
   useEffect(() => {
-    const animateIn = (value, delay = 0, duration = 520) =>
+    const animateIn = (value, delay = 0, duration = 750) =>
       Animated.timing(value, {
         toValue: 1,
         duration,
         delay,
-        easing: Easing.out(Easing.cubic),
+        easing: SMOOTH,
         useNativeDriver: true,
       });
 
     Animated.parallel([
-      animateIn(headerAnim, 0, 800),
-      animateIn(footerAnim, 150, 800),
-
-      Animated.spring(logoAnim, {
-        toValue: 1,
-        friction: 5,
-        tension: 70,
-        delay: 250,
-        useNativeDriver: true,
-      }),
-
-      animateIn(titleAnim, 380),
-      animateIn(formAnim, 480),
-      animateIn(linkAnim, 800),
-
-      Animated.timing(dividerAnim, {
-        toValue: 1,
-        duration: 600,
-        delay: 600,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false,
-      }),
+      animateIn(headerAnim, 0, 1000),
+      animateIn(footerAnim, 100, 1000),
+      animateIn(logoAnim, 200, 900),
+      animateIn(titleAnim, 350),
+      animateIn(formAnim, 450, 850),
+      animateIn(linkAnim, 700),
+      animateIn(dividerAnim, 550, 800),
     ]).start();
 
     const float = Animated.loop(
@@ -576,7 +577,8 @@ export default function SignUp({ navigation }) {
     Animated.timing(strengthAnim, {
       toValue:
         (passwordStrength.passed / PASSWORD_RULES.length) * 100,
-      duration: 250,
+      duration: 420,
+      easing: SMOOTH,
       useNativeDriver: false,
     }).start();
   }, [passwordStrength.passed, strengthAnim]);
@@ -955,7 +957,7 @@ export default function SignUp({ navigation }) {
                     {
                       scale: logoAnim.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [0.5, 1],
+                        outputRange: [0.85, 1],
                       }),
                     },
                   ],
@@ -1008,10 +1010,8 @@ export default function SignUp({ navigation }) {
                   style={[
                     styles.dividerContainer,
                     {
-                      width: dividerAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, 80],
-                      }),
+                      width: 80,
+                      transform: [{ scaleX: dividerAnim }],
                     },
                   ]}
                 >

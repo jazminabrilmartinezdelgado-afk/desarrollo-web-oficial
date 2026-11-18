@@ -1,9 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Pressable,
   ScrollView,
   SafeAreaView,
@@ -15,67 +14,19 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
-import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { signOut } from 'firebase/auth';
-import { auth } from '../src/config/firebaseConfig';
+import { collection, doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { auth, db } from '../src/config/firebaseConfig';
+import { useTheme } from '../src/theme/ThemeContext';
+import Gradient from '../src/components/Gradient';
+import Sidebar from '../src/components/Sidebar';
 
 // =========================================================================
-// CONSTANTES Y PALETA CORPORATIVA
+// CONSTANTES
 // =========================================================================
-const GREEN_DARK = '#0d3827';
-const GREEN_MID = '#168A48';
-const GREEN_MAIN = '#008A3B';
-const GOLD_YELLOW = '#CAB118';
-const GOLD_PILL = '#FACC15';
-const DARK = '#111827';
-const PAGE_BG = '#F3F7F4';
 
-// Foto del banner (campo / cultivo). Cuando tengas la imagen, guárdala en assets
-// y reemplaza null por: require('../assets/campo.jpg')
-const BANNER_IMAGE = null;
-
-const MODULES = [
-  {
-    key: 'stock',
-    route: 'Stock',
-    title: 'Gestionar Stock',
-    desc: 'Control de inventario, productos y entradas/salidas.',
-    icon: 'cubes',
-    bg: '#E6F4EA',
-    fg: GREEN_MAIN,
-    proximamente: true, // la pantalla todavía no existe
-  },
-  {
-    key: 'proveedores',
-    route: 'Proveedores',
-    title: 'Gestionar Proveedores',
-    desc: 'Directorio comercial, pedidos de insumos y contactos.',
-    icon: 'truck',
-    bg: '#FEF3C7',
-    fg: '#D97706',
-  },
-  {
-    key: 'empleados',
-    route: 'Empleados',
-    title: 'Gestionar Empleados',
-    desc: 'Registro de personal, roles asignados y accesos.',
-    icon: 'users',
-    bg: '#E0F2FE',
-    fg: '#0284C7',
-    proximamente: true, // la pantalla todavía no existe
-  },
-  {
-    key: 'perfil',
-    route: 'Perfil',
-    title: 'Mi Perfil',
-    desc: 'Tus datos personales, foto y contraseña.',
-    icon: 'user-circle',
-    bg: '#F3E8FF',
-    fg: '#7E22CE',
-  },
-];
-
-// [S3-07]
+const IMG_PRODUCTOS = require('../assets/productos.jpg');
+const IMG_LOCAL = require('../assets/local.jpg');
 
 const COMPROMISOS = [
   {
@@ -95,52 +46,41 @@ const COMPROMISOS = [
   },
 ];
 
-// =========================================================================
-// DEGRADADO CON SVG (no requiere instalar librerías extra)
-// =========================================================================
-function Gradient({ id, from, to, x2 = '0', y2 = '1', fromOpacity = 1, toOpacity = 1 }) {
-  return (
-    <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
-      <Defs>
-        <LinearGradient id={id} x1="0" y1="0" x2={x2} y2={y2}>
-          <Stop offset="0" stopColor={from} stopOpacity={fromOpacity} />
-          <Stop offset="1" stopColor={to} stopOpacity={toOpacity} />
-        </LinearGradient>
-      </Defs>
-      <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
-    </Svg>
-  );
-}
+// Marcas que se ven en el cartel del local
+const MARCAS = ['YARA', 'NOVA', 'Timac Agro', 'Bayer', 'Agroquímicos', 'Fertilizantes', 'Semillas'];
+
+const isActivo = (p) => p.estado !== false && p.estado !== 'inactivo';
 
 // =========================================================================
-// [S3-07]APARICIÓN AL HACER SCROLL (fade + slide)
+// APARICIÓN AL HACER SCROLL (fade + slide)
 // =========================================================================
-function Reveal({ children, delay = 0, limit, style }) {
+function Reveal({ children, delay = 0, limit, style, from = 28, base = 0 }) {
   const anim = useRef(new Animated.Value(0)).current;
-  const [top, setTop] = useState(null);
+  const [y, setY] = useState(null);
   const played = useRef(false);
 
   useEffect(() => {
-    if (!played.current && top !== null && top < limit - 40) {
+    // base = posición de la fila que lo contiene (para tarjetas dentro de filas)
+    if (!played.current && y !== null && base !== null && base + y < limit - 40) {
       played.current = true;
       Animated.timing(anim, {
         toValue: 1,
-        duration: 560,
+        duration: 620,
         delay,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }).start();
     }
-  }, [top, limit]);
+  }, [y, limit, base]);
 
   return (
     <Animated.View
-      onLayout={(e) => setTop(e.nativeEvent.layout.y)}
+      onLayout={(e) => setY(e.nativeEvent.layout.y)}
       style={[
         style,
         {
           opacity: anim,
-          transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) }],
+          transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [from, 0] }) }],
         },
       ]}
     >
@@ -150,46 +90,89 @@ function Reveal({ children, delay = 0, limit, style }) {
 }
 
 // =========================================================================
-// TARJETA DE MÓDULO (press + hover)
+// NÚMERO QUE CUENTA HACIA ARRIBA
 // =========================================================================
-function ModuleCard({ item, onPress }) {
-  const scale = useRef(new Animated.Value(1)).current;
+function CountUp({ value, style }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  const [shown, setShown] = useState(0);
+
+  useEffect(() => {
+    if (value == null) return;
+    const id = anim.addListener(({ value: v }) => setShown(Math.round(v)));
+    Animated.timing(anim, {
+      toValue: value,
+      duration: 1100,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+    return () => anim.removeListener(id);
+  }, [value]);
+
+  return <Text style={style}>{value == null ? '—' : shown}</Text>;
+}
+
+// =========================================================================
+// TARJETA CON HOVER (se eleva y brilla en web)
+// =========================================================================
+function HoverCard({ style, hoverStyle, children, onPress, grow }) {
   const [hovered, setHovered] = useState(false);
-
-  const pressIn = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true }).start();
-  const pressOut = () =>
-    Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }).start();
-
+  const scale = useRef(new Animated.Value(1)).current;
   return (
-    <Animated.View style={{ transform: [{ scale }] }}>
+    <Animated.View style={{ transform: [{ scale }], flex: grow ? 1 : undefined }}>
       <Pressable
         onPress={onPress}
-        onPressIn={pressIn}
-        onPressOut={pressOut}
+        onPressIn={() => onPress && Animated.spring(scale, { toValue: 0.97, useNativeDriver: true }).start()}
+        onPressOut={() => Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }).start()}
         {...(Platform.OS === 'web'
           ? { onMouseEnter: () => setHovered(true), onMouseLeave: () => setHovered(false) }
           : {})}
-        style={[styles.moduleCard, hovered && styles.moduleCardHover]}
+        style={[style, hovered && hoverStyle]}
       >
-        <View style={[styles.moduleIcon, { backgroundColor: item.bg }]}>
-          <FontAwesome name={item.icon} size={20} color={item.fg} />
-        </View>
-        <View style={{ flex: 1, paddingRight: 8 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={styles.moduleTitle}>{item.title}</Text>
-            {item.proximamente && (
-              <View style={styles.soonBadge}>
-                <Text style={styles.soonText}>PRÓXIMAMENTE</Text>
-              </View>
-            )}
-          </View>
-          <Text style={styles.moduleDesc}>{item.desc}</Text>
-        </View>
-        <View style={[styles.moduleArrow, hovered && { backgroundColor: GREEN_MAIN }]}>
-          <FontAwesome name="chevron-right" size={11} color={hovered ? '#FFFFFF' : '#9CA3AF'} />
-        </View>
+        {children}
       </Pressable>
     </Animated.View>
+  );
+}
+
+// =========================================================================
+// CINTA DE MARCAS EN MOVIMIENTO (marquee)
+// =========================================================================
+function Marquee({ c }) {
+  const x = useRef(new Animated.Value(0)).current;
+  const [w, setW] = useState(0);
+
+  useEffect(() => {
+    if (!w) return;
+    x.setValue(0);
+    const loop = Animated.loop(
+      Animated.timing(x, { toValue: -w, duration: w * 28, easing: Easing.linear, useNativeDriver: true })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [w]);
+
+  const row = (key, measure) => (
+    <View
+      key={key}
+      style={styles.marqueeRow}
+      onLayout={measure ? (e) => setW(e.nativeEvent.layout.width) : undefined}
+    >
+      {MARCAS.map((m) => (
+        <View key={m} style={[styles.brandChip, { backgroundColor: c.surface, borderColor: c.border }]}>
+          <FontAwesome name="leaf" size={11} color={c.greenMain} />
+          <Text style={[styles.brandChipText, { color: c.text }]}>{m}</Text>
+        </View>
+      ))}
+    </View>
+  );
+
+  return (
+    <View style={styles.marquee}>
+      <Animated.View style={{ flexDirection: 'row', transform: [{ translateX: x }] }}>
+        {row('a', true)}
+        {row('b', false)}
+      </Animated.View>
+    </View>
   );
 }
 
@@ -197,105 +180,122 @@ function ModuleCard({ item, onPress }) {
 // PANTALLA HOME
 // =========================================================================
 export default function Home({ navigation }) {
+  const { colors: c, isDark, toggleTheme } = useTheme();
   const { height: viewH } = useWindowDimensions();
-  const [userName, setUserName] = useState('');
+  // Diseño de celular: una sola columna y sidebar que se abre/cierra con el botón ☰
+  const wide = false;
+  const twoCols = false;
+
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [profile, setProfile] = useState({ name: '', email: '', foto: '' });
+  const [stats, setStats] = useState({ activos: null, total: null });
 
   // Control de aparición por scroll
   const [scrollBottom, setScrollBottom] = useState(viewH);
-  const [contentY, setContentY] = useState(0);
+  const [duoY, setDuoY] = useState(null);
+  const [commitY, setCommitY] = useState(null);
   const maxBottom = useRef(viewH);
 
   // Animaciones
   const heroAnim = useRef(new Animated.Value(0)).current;
+  const zoom = useRef(new Animated.Value(0)).current;
   const waveHand = useRef(new Animated.Value(0)).current;
   const pulse = useRef(new Animated.Value(0)).current;
-  const float1 = useRef(new Animated.Value(0)).current;
-  const float2 = useRef(new Animated.Value(0)).current;
-  const zoom = useRef(new Animated.Value(0)).current;
-  const logoutScale = useRef(new Animated.Value(1)).current;
+  const float = useRef(new Animated.Value(0)).current;
+  const arrow = useRef(new Animated.Value(0)).current;
+  const themeSpin = useRef(new Animated.Value(isDark ? 1 : 0)).current;
 
-  // Lee el nombre del usuario (se repite al volver de "Mi Perfil" por si lo editó)
+  // ---------- PERFIL (nombre + foto) al entrar y al volver a esta pantalla ----------
   useEffect(() => {
-    const loadName = () => {
+    const load = async () => {
       const user = auth.currentUser;
       if (!user) return;
       const raw = user.displayName || (user.email ? user.email.split('@')[0] : '');
-      setUserName(raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : '');
+      const name = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : '';
+      let foto = '';
+      try {
+        const snap = await getDoc(doc(db, 'usuarios', user.uid));
+        if (snap.exists()) foto = snap.data().foto || '';
+      } catch (e) {
+        // Sin permiso o sin conexión: se muestran las iniciales
+      }
+      setProfile({ name, email: user.email || '', foto });
     };
-    loadName();
-    return navigation.addListener('focus', loadName);
+    load();
+    return navigation.addListener('focus', load);
   }, [navigation]);
 
+  // ---------- ESTADÍSTICAS EN VIVO (colección proveedores) ----------
   useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, 'proveedores'),
+      (snap) => {
+        const list = snap.docs.map((d) => d.data());
+        setStats({ activos: list.filter(isActivo).length, total: list.length });
+      },
+      () => setStats({ activos: null, total: null })
+    );
+    return unsub;
+  }, []);
 
-    // Entrada del encabezado
+  // ---------- ANIMACIONES CONTINUAS ----------
+  useEffect(() => {
     Animated.timing(heroAnim, {
       toValue: 1,
-      duration: 700,
+      duration: 900,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
 
-    // Saludo de la mano
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(waveHand, { toValue: 1, duration: 350, useNativeDriver: true }),
-        Animated.timing(waveHand, { toValue: -1, duration: 350, useNativeDriver: true }),
-        Animated.timing(waveHand, { toValue: 1, duration: 350, useNativeDriver: true }),
-        Animated.timing(waveHand, { toValue: 0, duration: 350, useNativeDriver: true }),
-        Animated.delay(1800),
-      ])
-    ).start();
-
-    // Punto de la etiqueta que "respira"
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 0, duration: 900, useNativeDriver: true }),
-      ])
-    ).start();
-
-    // Círculos decorativos flotando
-    const floatLoop = (val, dur) =>
+    const loops = [
+      // Zoom lento de la foto (efecto Ken Burns)
       Animated.loop(
         Animated.sequence([
-          Animated.timing(val, {
-            toValue: 1,
-            duration: dur,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
-          Animated.timing(val, {
-            toValue: 0,
-            duration: dur,
-            easing: Easing.inOut(Easing.sin),
-            useNativeDriver: true,
-          }),
+          Animated.timing(zoom, { toValue: 1, duration: 14000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(zoom, { toValue: 0, duration: 14000, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
         ])
-      ).start();
-    floatLoop(float1, 3800);
-    floatLoop(float2, 5200);
-
-    // Zoom lento del banner
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(zoom, {
-          toValue: 1,
-          duration: 9000,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.timing(zoom, {
-          toValue: 0,
-          duration: 9000,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+      ),
+      // Saludo de la mano
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(waveHand, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(waveHand, { toValue: -1, duration: 300, useNativeDriver: true }),
+          Animated.timing(waveHand, { toValue: 1, duration: 300, useNativeDriver: true }),
+          Animated.timing(waveHand, { toValue: 0, duration: 300, useNativeDriver: true }),
+          Animated.delay(2200),
+        ])
+      ),
+      // Punto que "respira"
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 0, duration: 900, useNativeDriver: true }),
+        ])
+      ),
+      // Elementos flotantes
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(float, { toValue: 1, duration: 3600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+          Animated.timing(float, { toValue: 0, duration: 3600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ])
+      ),
+      // Flecha del botón principal
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(arrow, { toValue: 1, duration: 650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(arrow, { toValue: 0, duration: 650, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        ])
+      ),
+    ];
+    loops.forEach((l) => l.start());
+    return () => loops.forEach((l) => l.stop());
   }, []);
 
-  // [S3-07] 
+  // Giro del ícono sol/luna al cambiar de tema
+  useEffect(() => {
+    Animated.spring(themeSpin, { toValue: isDark ? 1 : 0, friction: 6, useNativeDriver: true }).start();
+  }, [isDark]);
+
   const handleScroll = (e) => {
     const bottom = e.nativeEvent.contentOffset.y + viewH;
     if (bottom > maxBottom.current + 20) {
@@ -304,501 +304,628 @@ export default function Home({ navigation }) {
     }
   };
 
-  // Cierre de sesión seguro
   const handleLogout = async () => {
     try {
-      await signOut(auth);
-      navigation.replace('Login');
+      await signOut(auth); // Navigation.js vuelve solo al Login
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
     }
   };
 
-  const limit = scrollBottom - contentY;
+  const goTo = (route) => {
+    if (route !== 'Home') navigation.navigate(route);
+  };
 
-  const handRotation = waveHand.interpolate({
-    inputRange: [-1, 1],
-    outputRange: ['-15deg', '25deg'],
-  });
+  const heroH = 460;
+  // El contenido empieza debajo del hero: se descuenta su altura
+  const limit = scrollBottom - heroH;
+  const s = useMemo(() => themed(c), [c]);
+
+  const initials = (profile.name || profile.email || '?')
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p.charAt(0))
+    .join('')
+    .toUpperCase();
+
+  const sidebarProps = {
+    active: 'Home',
+    profile,
+    onNavigate: goTo,
+    onLogout: handleLogout,
+  };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar backgroundColor={GREEN_DARK} barStyle="light-content" translucent />
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: c.bg }]}>
+      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        bounces={false}
-        scrollEventThrottle={16}
-        onScroll={handleScroll}
-      >
-        {/* ================= HERO ================= */}
-        <Animated.View
-          style={[
-            styles.hero,
-            {
-              opacity: heroAnim,
-              transform: [
-                { translateY: heroAnim.interpolate({ inputRange: [0, 1], outputRange: [-30, 0] }) },
-              ],
-            },
-          ]}
-        >
-          <Gradient id="heroGrad" from="#0a2e20" to="#0f6b34" x2="1" y2="1" />
+      <View style={styles.layout}>
+        {wide && <Sidebar permanent {...sidebarProps} />}
 
-          {/* Círculos decorativos */}
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.circle,
-              {
-                width: 190,
-                height: 190,
-                top: -60,
-                right: -50,
-                transform: [
-                  { translateY: float1.interpolate({ inputRange: [0, 1], outputRange: [0, 14] }) },
-                ],
-              },
-            ]}
-          />
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.circle,
-              {
-                width: 110,
-                height: 110,
-                bottom: -30,
-                left: -30,
-                transform: [
-                  { translateY: float2.interpolate({ inputRange: [0, 1], outputRange: [0, -12] }) },
-                ],
-              },
-            ]}
-          />
-
-          <View style={styles.heroInner}>
-            <View style={styles.heroTop}>
-              <View style={styles.logoBox}>
-                <Image
-                  source={require('../assets/logo.png')}
-                  style={styles.logoImg}
-                  resizeMode="contain"
-                />
-              </View>
-
-              <Animated.View style={{ transform: [{ scale: logoutScale }] }}>
-                <Pressable
-                  style={styles.logoutBtn}
-                  onPress={handleLogout}
-                  onPressIn={() =>
-                    Animated.spring(logoutScale, { toValue: 0.9, useNativeDriver: true }).start()
-                  }
-                  onPressOut={() =>
-                    Animated.spring(logoutScale, {
-                      toValue: 1,
-                      friction: 4,
-                      useNativeDriver: true,
-                    }).start()
-                  }
-                >
-                  <FontAwesome name="sign-out" size={16} color="#FFFFFF" />
-                  <Text style={styles.logoutText}>Salir</Text>
-                </Pressable>
-              </Animated.View>
-            </View>
-
-            <View style={styles.pill}>
-              <Animated.View
+        <View style={styles.main}>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={{ flexGrow: 1 }}
+            showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onScroll={handleScroll}
+          >
+            {/* ================= HERO CON FOTO DE PRODUCTOS ================= */}
+            <View style={[styles.hero, { height: heroH }]}>
+              <Animated.Image
+                source={IMG_PRODUCTOS}
+                resizeMode="cover"
                 style={[
-                  styles.pillDot,
+                  StyleSheet.absoluteFill,
                   {
-                    opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.35] }),
+                    width: '100%',
+                    height: '100%',
                     transform: [
-                      { scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.5] }) },
+                      { scale: zoom.interpolate({ inputRange: [0, 1], outputRange: [1.05, 1.18] }) },
+                      { translateX: zoom.interpolate({ inputRange: [0, 1], outputRange: [0, -18] }) },
                     ],
                   },
                 ]}
               />
-              <Text style={styles.pillText}>EXCELENCIA AGRÍCOLA</Text>
-            </View>
-
-            <View style={styles.helloRow}>
-              <Text style={styles.helloText}>Hola, {userName || 'Usuario'}</Text>
-              <Animated.Text style={[styles.hand, { transform: [{ rotate: handRotation }] }]}>
-                👋
-              </Animated.Text>
-            </View>
-
-            <Text style={styles.heroText}>
-              Bienvenido a Agroquímica Del Valle.{'\n'}
-              Potenciamos la productividad agrícola mediante la gestión eficiente de insumos de
-              vanguardia.
-            </Text>
-          </View>
-        </Animated.View>
-
-        {/* ================= CONTENIDO ================= */}
-        <View style={styles.content} onLayout={(e) => setContentY(e.nativeEvent.layout.y)}>
-          {/* Banner con imagen */}
-          <Reveal limit={limit} delay={100} style={styles.bannerWrap}>
-            <View style={styles.banner}>
-              {BANNER_IMAGE ? (
-                <Animated.Image
-                  source={BANNER_IMAGE}
-                  resizeMode="cover"
-                  style={[
-                    StyleSheet.absoluteFill,
-                    {
-                      width: '100%',
-                      height: '100%',
-                      transform: [
-                        { scale: zoom.interpolate({ inputRange: [0, 1], outputRange: [1, 1.1] }) },
-                      ],
-                    },
+              {/* Velo verde de izquierda a derecha para que se lea el texto */}
+              <Gradient
+                id="heroSide"
+                x2="1"
+                y2="0"
+                stops={[
+                  { offset: 0, color: '#06231a', opacity: 0.95 },
+                  { offset: 0.55, color: '#0d3827', opacity: 0.7 },
+                  { offset: 1, color: '#0d3827', opacity: 0.25 },
+                ]}
+              />
+              {/* Difuminado inferior: la foto se funde con el fondo de la página */}
+              <View pointerEvents="none" style={styles.heroFade}>
+                <Gradient
+                  id={`heroFade-${c.mode}`}
+                  stops={[
+                    { offset: 0, color: c.bg, opacity: 0 },
+                    { offset: 0.6, color: c.bg, opacity: 0.75 },
+                    { offset: 0.85, color: c.bg, opacity: 1 },
+                    { offset: 1, color: c.bg, opacity: 1 },
                   ]}
                 />
-              ) : (
-                <>
-                  <Gradient id="bannerBg" from="#168A48" to="#0d3827" x2="1" y2="1" />
+              </View>
+
+              {/* Círculos de luz flotando */}
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.glow,
+                  {
+                    top: -80,
+                    right: -60,
+                    transform: [{ translateY: float.interpolate({ inputRange: [0, 1], outputRange: [0, 20] }) }],
+                  },
+                ]}
+              />
+
+              {/* Barra superior dentro del hero */}
+              <Animated.View style={[styles.heroTop, { opacity: heroAnim }]}>
+                {!wide && (
+                  <Pressable style={styles.glassBtn} onPress={() => setDrawerOpen(true)}>
+                    <FontAwesome name="bars" size={17} color="#FFFFFF" />
+                  </Pressable>
+                )}
+                {!wide && (
+                  <View style={styles.logoBox}>
+                    <Image source={require('../assets/logo.png')} style={styles.logoImg} resizeMode="contain" />
+                  </View>
+                )}
+                <View style={{ flex: 1 }} />
+                <Pressable style={styles.glassBtn} onPress={toggleTheme}>
+                  <Animated.View
+                    style={{
+                      transform: [
+                        { rotate: themeSpin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) },
+                      ],
+                    }}
+                  >
+                    <FontAwesome name={isDark ? 'moon-o' : 'sun-o'} size={17} color="#FACC15" />
+                  </Animated.View>
+                </Pressable>
+                <Pressable onPress={() => goTo('Perfil')} style={styles.heroAvatarWrap}>
+                  {profile.foto ? (
+                    <Image source={{ uri: profile.foto }} style={styles.heroAvatar} />
+                  ) : (
+                    <View style={[styles.heroAvatar, styles.heroAvatarFallback]}>
+                      <Text style={styles.heroAvatarText}>{initials}</Text>
+                    </View>
+                  )}
+                </Pressable>
+              </Animated.View>
+
+              {/* Texto principal */}
+              <Animated.View
+                style={[
+                  styles.heroContent,
+                  {
+                    opacity: heroAnim,
+                    transform: [{ translateY: heroAnim.interpolate({ inputRange: [0, 1], outputRange: [40, 0] }) }],
+                  },
+                ]}
+              >
+                <View style={styles.pill}>
+                  <Animated.View
+                    style={[
+                      styles.pillDot,
+                      {
+                        opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.35] }),
+                        transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.6] }) }],
+                      },
+                    ]}
+                  />
+                  <Text style={styles.pillText}>EXCELENCIA AGRÍCOLA</Text>
+                </View>
+
+                <View style={styles.helloRow}>
+                  <Text style={[styles.helloText, wide && { fontSize: 42 }]}>
+                    Hola, {profile.name ? profile.name.split(' ')[0] : 'Usuario'}
+                  </Text>
+                  <Animated.Text
+                    style={[
+                      styles.hand,
+                      {
+                        transform: [
+                          { rotate: waveHand.interpolate({ inputRange: [-1, 1], outputRange: ['-15deg', '25deg'] }) },
+                        ],
+                      },
+                    ]}
+                  >
+                    👋
+                  </Animated.Text>
+                </View>
+
+                <Text style={[styles.heroTitle, wide && { fontSize: 22 }]}>
+                  Insumos de vanguardia para{'\n'}cada etapa del cultivo
+                </Text>
+                <Text style={styles.heroText}>
+                  Bienvenido a Agroquímica Del Valle. Gestioná proveedores e insumos desde un solo lugar.
+                </Text>
+
+                <View style={styles.ctaRow}>
+                  <Pressable style={styles.ctaMain} onPress={() => goTo('Proveedores')}>
+                    <Text style={styles.ctaMainText}>Ver proveedores</Text>
+                    <Animated.View
+                      style={{
+                        transform: [{ translateX: arrow.interpolate({ inputRange: [0, 1], outputRange: [0, 5] }) }],
+                      }}
+                    >
+                      <FontAwesome name="arrow-right" size={13} color="#0d3827" />
+                    </Animated.View>
+                  </Pressable>
+                  <Pressable style={styles.ctaGhost} onPress={() => goTo('Perfil')}>
+                    <FontAwesome name="user-circle" size={14} color="#FFFFFF" />
+                    <Text style={styles.ctaGhostText}>Mi perfil</Text>
+                  </Pressable>
+                </View>
+              </Animated.View>
+            </View>
+
+            {/* ================= CONTENIDO ================= */}
+            <View style={styles.content}>
+              {/* Estadísticas en vivo (se superponen al hero) */}
+              <View style={styles.statsRow}>
+                {[
+                  { icon: 'truck', label: 'Activos', value: stats.activos, color: '#22C55E' },
+                  { icon: 'list-alt', label: 'Registrados', value: stats.total, color: '#F59E0B' },
+                  { icon: 'check-circle', label: 'Cuenta', text: 'Verificada', color: '#0EA5E9' },
+                ].map((st, i) => (
+                  <Reveal key={st.label} limit={limit + 400} delay={250 + i * 120} style={styles.flex1}>
+                    <HoverCard style={[s.statCard, { flex: 1 }]} hoverStyle={s.cardHover} grow>
+                      <View style={[styles.statIcon, { backgroundColor: st.color + '22' }]}>
+                        <FontAwesome name={st.icon} size={16} color={st.color} />
+                      </View>
+                      <View>
+                        {st.text ? (
+                          <Text style={[styles.statValue, { color: c.text, fontSize: 15, marginTop: 6 }]}>{st.text}</Text>
+                        ) : (
+                          <CountUp value={st.value} style={[styles.statValue, { color: c.text }]} />
+                        )}
+                        <Text style={[styles.statLabel, { color: c.textMuted }]}>{st.label}</Text>
+                      </View>
+                    </HoverCard>
+                  </Reveal>
+                ))}
+              </View>
+
+              {/* Nuestro local + misión */}
+              <Reveal limit={limit} style={styles.sectionHead}>
+                <Text style={[styles.kicker, { color: c.greenMain }]}>CONOCENOS</Text>
+                <Text style={[styles.sectionTitle, { color: c.text }]}>Cerca de quienes producen</Text>
+              </Reveal>
+
+              <View
+                style={[styles.duo, !twoCols && { flexDirection: 'column' }]}
+                onLayout={(e) => setDuoY(e.nativeEvent.layout.y)}
+              >
+                <Reveal limit={limit} base={duoY} style={twoCols ? styles.flex1 : null}>
+                  <View style={[styles.localCard, { height: twoCols ? 380 : 300 }]}>
+                    <Animated.Image
+                      source={IMG_LOCAL}
+                      resizeMode="cover"
+                      style={[
+                        StyleSheet.absoluteFill,
+                        {
+                          width: '100%',
+                          height: '100%',
+                          transform: [{ scale: zoom.interpolate({ inputRange: [0, 1], outputRange: [1.12, 1.02] }) }],
+                        },
+                      ]}
+                    />
+                    <Gradient
+                      id="localFade"
+                      stops={[
+                        { offset: 0, color: '#000000', opacity: 0 },
+                        { offset: 0.45, color: '#000000', opacity: 0.05 },
+                        { offset: 1, color: '#06231a', opacity: 0.95 },
+                      ]}
+                    />
+                    <View style={styles.localInfo}>
+                      <View style={styles.localTag}>
+                        <FontAwesome name="map-marker" size={11} color="#0d3827" />
+                        <Text style={styles.localTagText}>NUESTRO LOCAL</Text>
+                      </View>
+                      <Text style={styles.localTitle}>Agroquímica Del Valle</Text>
+                      <Text style={styles.localSub}>San Millán 60 · Cerrillos, Salta</Text>
+                      <Text style={styles.localSub2}>Agroquímicos · Fertilizantes · Semillas</Text>
+                    </View>
+                  </View>
+                </Reveal>
+
+                <Reveal limit={limit} base={duoY} delay={150} style={twoCols ? styles.flex1 : null}>
+                  <View style={[s.card, twoCols && { flex: 1, justifyContent: 'center' }]}>
+                    <View style={[styles.cardIcon, { backgroundColor: c.accentSoft }]}>
+                      <FontAwesome name="bullseye" size={18} color={c.greenMain} />
+                    </View>
+                    <Text style={[styles.cardTitle, { color: c.text }]}>Nuestra Misión</Text>
+                    <Text style={[styles.missionText, { color: c.textSoft }]}>
+                      Comercializar insumos agrícolas de alta calidad, brindando a nuestros clientes productos
+                      confiables para el desarrollo de sus actividades agropecuarias. Contribuimos a la
+                      productividad mediante productos para la protección de los cultivos y el mejoramiento de su
+                      rendimiento, cumpliendo las normativas ambientales y promoviendo prácticas agrícolas
+                      responsables que preserven el equilibrio del ecosistema.
+                    </Text>
+                  </View>
+                </Reveal>
+              </View>
+
+              {/* Marcas */}
+              <Reveal limit={limit} style={[styles.sectionHead, { marginTop: 34 }]}>
+                <Text style={[styles.kicker, { color: c.greenMain }]}>LO QUE OFRECEMOS</Text>
+                <Text style={[styles.sectionTitle, { color: c.text }]}>Marcas y rubros</Text>
+              </Reveal>
+              <Reveal limit={limit}>
+                <Marquee c={c} />
+              </Reveal>
+
+              {/* Compromisos */}
+              <Reveal limit={limit} style={[styles.sectionHead, { marginTop: 34 }]}>
+                <Text style={[styles.kicker, { color: c.greenMain }]}>NUESTROS VALORES</Text>
+                <Text style={[styles.sectionTitle, { color: c.text }]}>Nuestro Compromiso</Text>
+              </Reveal>
+              <View
+                style={[styles.commitRow, !twoCols && { flexDirection: 'column' }]}
+                onLayout={(e) => setCommitY(e.nativeEvent.layout.y)}
+              >
+                {COMPROMISOS.map((item, i) => (
+                  <Reveal key={item.title} limit={limit} base={commitY} delay={i * 120} style={twoCols ? styles.flex1 : null}>
+                    <HoverCard style={[s.card, twoCols && { flex: 1 }]} hoverStyle={s.cardHover} grow={twoCols}>
+                      <View style={[styles.cardIcon, { backgroundColor: c.accentSoft }]}>
+                        <FontAwesome name={item.icon} size={18} color={c.greenMain} />
+                      </View>
+                      <Text style={[styles.cardTitle, { color: c.text }]}>{item.title}</Text>
+                      <Text style={[styles.commitText, { color: c.textMuted }]}>{item.text}</Text>
+                    </HoverCard>
+                  </Reveal>
+                ))}
+              </View>
+
+              {/* Cita final */}
+              <Reveal limit={limit} style={{ marginTop: 30 }}>
+                <View style={styles.quoteCard}>
+                  <Gradient
+                    id="quoteGrad"
+                    x2="1"
+                    y2="1"
+                    stops={[
+                      { offset: 0, color: '#0a2e20' },
+                      { offset: 1, color: '#168A48' },
+                    ]}
+                  />
                   <Animated.View
                     pointerEvents="none"
                     style={{
                       position: 'absolute',
-                      right: 18,
-                      top: 10,
+                      right: 20,
+                      top: -10,
                       opacity: 0.12,
                       transform: [
-                        { scale: zoom.interpolate({ inputRange: [0, 1], outputRange: [1, 1.15] }) },
+                        { rotate: float.interpolate({ inputRange: [0, 1], outputRange: ['-8deg', '8deg'] }) },
                       ],
                     }}
                   >
-                    <FontAwesome name="leaf" size={150} color="#FFFFFF" />
+                    <FontAwesome name="leaf" size={140} color="#FFFFFF" />
                   </Animated.View>
-                </>
-              )}
-
-              <Gradient id="bannerShade" from="#000000" to="#000000" fromOpacity={0} toOpacity={0.7} />
-
-              <View style={styles.bannerContent}>
-                <View style={styles.bannerPill}>
-                  <FontAwesome name="leaf" size={10} color="#86EFAC" />
-                  <Text style={styles.bannerPillText}>CERCA DE QUIENES PRODUCEN</Text>
+                  <FontAwesome name="quote-left" size={22} color="#FACC15" />
+                  <Text style={styles.quoteText}>
+                    Transformando la gestión agrícola con tecnología y conocimiento especializado para alimentar al
+                    mundo de forma segura.
+                  </Text>
+                  <View style={styles.quoteBrand}>
+                    <View style={styles.quoteLogoBox}>
+                      <Image source={require('../assets/logo.png')} style={styles.quoteLogo} resizeMode="contain" />
+                    </View>
+                    <Text style={styles.quoteBrandText}>AGROQUÍMICA DEL VALLE</Text>
+                  </View>
                 </View>
-                <Text style={styles.bannerTitle}>Soluciones que acompañan cada etapa del cultivo</Text>
-                <Text style={styles.bannerSub}>Innovación, experiencia y compromiso en el campo.</Text>
-              </View>
+              </Reveal>
             </View>
-          </Reveal>
 
-          {/* Módulos */}
-          <Reveal limit={limit} style={styles.sectionHead}>
-            <Text style={styles.sectionTitle}>Módulos del sistema</Text>
-          </Reveal>
-
-          {MODULES.map((m, i) => (
-            <Reveal key={m.key} limit={limit} delay={i * 90} style={{ marginBottom: 12 }}>
-              <ModuleCard
-                item={m}
-                onPress={() => {
-                  // Los módulos sin pantalla todavía no navegan (evita el error de ruta inexistente)
-                  if (!m.proximamente) navigation.navigate(m.route);
-                }}
-              />
-            </Reveal>
-          ))}
-
-          {/* Misión */}
-          <Reveal limit={limit} style={[styles.sectionHead, { marginTop: 14 }]}>
-            <Text style={styles.sectionTitle}>Nuestra Misión</Text>
-          </Reveal>
-
-          <Reveal limit={limit}>
-            <View style={styles.card}>
-              <Text style={styles.missionText}>
-                La empresa Agroquímica del Valle tiene como objetivo principal comercializar insumos
-                agrícolas de alta calidad, brindando a sus clientes productos confiables para el
-                desarrollo de sus actividades agropecuarias. La organización busca contribuir a la
-                productividad agrícola mediante la venta de productos destinados a la protección de
-                los cultivos y al mejoramiento de su rendimiento. Asimismo, asume el compromiso de
-                operar en cumplimiento de las normativas ambientales vigentes, garantizando la
-                seguridad en el uso de sus productos y promoviendo prácticas agrícolas responsables
-                que preserven el equilibrio del ecosistema.
-              </Text>
+            {/* Barra inferior institucional */}
+            <View style={styles.bottomBar}>
+              <View style={{ flex: 1, backgroundColor: c.gold }} />
+              <View style={{ flex: 4, backgroundColor: c.greenDark }} />
             </View>
-          </Reveal>
-
-          {/* Compromiso */}
-          <Reveal limit={limit} style={[styles.sectionHead, { marginTop: 22 }]}>
-            <Text style={styles.sectionTitle}>Nuestro Compromiso</Text>
-          </Reveal>
-
-          {COMPROMISOS.map((c, i) => (
-            <Reveal key={c.title} limit={limit} delay={i * 80} style={{ marginBottom: 12 }}>
-              <View style={[styles.card, styles.commitCard]}>
-                <View style={styles.commitIcon}>
-                  <FontAwesome name={c.icon} size={18} color={GREEN_MAIN} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.commitTitle}>{c.title}</Text>
-                  <Text style={styles.commitText}>{c.text}</Text>
-                </View>
-              </View>
-            </Reveal>
-          ))}
-
-          {/* Cita final */}
-          <Reveal limit={limit} style={{ marginTop: 10 }}>
-            <View style={styles.quoteCard}>
-              <FontAwesome name="pagelines" size={26} color={GREEN_MAIN} />
-              <Text style={styles.quoteText}>
-                "Transformando la gestión agrícola con tecnología y conocimiento especializado para
-                alimentar al mundo de forma segura."
-              </Text>
-              <View style={styles.quoteBrand}>
-                <Image
-                  source={require('../assets/logo.png')}
-                  style={styles.quoteLogo}
-                  resizeMode="contain"
-                />
-                <Text style={styles.quoteBrandText}>AGROQUÍMICA DEL VALLE</Text>
-              </View>
-            </View>
-          </Reveal>
+          </ScrollView>
         </View>
+      </View>
 
-        {/* Barra inferior institucional */}
-        <View style={styles.bottomBar}>
-          <View style={{ flex: 1, backgroundColor: GOLD_YELLOW }} />
-          <View style={{ flex: 4, backgroundColor: GREEN_DARK }} />
-        </View>
-      </ScrollView>
+      {/* Sidebar deslizable en celulares */}
+      {!wide && (
+        <Sidebar visible={drawerOpen} onClose={() => setDrawerOpen(false)} {...sidebarProps} />
+      )}
     </SafeAreaView>
   );
 }
 
 // =========================================================================
-// ESTILOS
+// ESTILOS QUE CAMBIAN CON EL TEMA
+// =========================================================================
+const themed = (c) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: c.surface,
+      borderRadius: 22,
+      padding: 22,
+      borderWidth: 1,
+      borderColor: c.border,
+      shadowColor: c.shadow,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: c.mode === 'dark' ? 0.3 : 0.06,
+      shadowRadius: 16,
+      elevation: 3,
+      ...(Platform.OS === 'web' ? { transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' } : {}),
+    },
+    statCard: {
+      gap: 8,
+      backgroundColor: c.surface,
+      borderRadius: 18,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: c.border,
+      shadowColor: c.shadow,
+      shadowOffset: { width: 0, height: 10 },
+      shadowOpacity: c.mode === 'dark' ? 0.35 : 0.08,
+      shadowRadius: 20,
+      elevation: 5,
+      ...(Platform.OS === 'web' ? { transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' } : {}),
+    },
+    cardHover: {
+      borderColor: c.greenMain,
+      ...(Platform.OS === 'web'
+        ? { transform: 'translateY(-4px)', boxShadow: `0 12px 30px ${c.mode === 'dark' ? 'rgba(34,197,94,0.25)' : 'rgba(0,138,59,0.22)'}` }
+        : {}),
+    },
+  });
+
+// =========================================================================
+// ESTILOS FIJOS
 // =========================================================================
 const styles = StyleSheet.create({
-  // Altura fija en web para que el ScrollView interno sea el que scrollea
   safeArea: {
     flex: 1,
-    backgroundColor: PAGE_BG,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     ...(Platform.OS === 'web' ? { height: '100vh', overflow: 'hidden' } : {}),
   },
-  scroll: {
-    flex: 1,
-    ...(Platform.OS === 'web' ? { height: '100%', minHeight: 0 } : {}),
-  },
-  scrollContent: { flexGrow: 1 },
+  layout: { flex: 1, flexDirection: 'row' },
+  flex1: { flex: 1 },
+  main: { flex: 1 },
+  scroll: { flex: 1, ...(Platform.OS === 'web' ? { height: '100%', minHeight: 0 } : {}) },
 
   // ---------- Hero ----------
-  hero: {
-    backgroundColor: GREEN_DARK,
-    borderBottomLeftRadius: 36,
-    borderBottomRightRadius: 36,
-    overflow: 'hidden',
-    paddingTop: 20,
-    paddingBottom: 30,
-  },
-  circle: {
+  hero: { width: '100%', overflow: 'hidden', backgroundColor: '#0d3827' },
+  // Capa que funde la foto con el fondo; baja 4px de más para tapar cualquier borde
+  heroFade: { position: 'absolute', left: 0, right: 0, bottom: -4, height: '50%' },
+  glow: {
     position: 'absolute',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  heroInner: {
-    width: '100%',
-    maxWidth: 720,
-    alignSelf: 'center',
-    paddingHorizontal: 24,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: 'rgba(250,204,21,0.10)',
   },
   heroTop: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 22,
+    gap: 10,
+    paddingHorizontal: 22,
+    paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 0) + 14 : 20,
+  },
+  glassBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', backdropFilter: 'blur(8px)' } : {}),
   },
   logoBox: {
-    width: 46,
-    height: 46,
+    width: 42,
+    height: 42,
     borderRadius: 14,
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  logoImg: { width: 32, height: 32 },
-  logoutBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 14,
+  logoImg: { width: 30, height: 30 },
+  heroAvatarWrap: {
+    borderRadius: 23,
+    borderWidth: 2,
+    borderColor: '#FACC15',
+    padding: 2,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  logoutText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600' },
+  heroAvatar: { width: 38, height: 38, borderRadius: 19 },
+  heroAvatarFallback: { backgroundColor: '#008A3B', justifyContent: 'center', alignItems: 'center' },
+  heroAvatarText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
+
+  heroContent: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 26,
+    paddingBottom: 90,
+    maxWidth: 680,
+  },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 8,
-    backgroundColor: GOLD_PILL,
+    backgroundColor: '#FACC15',
     paddingHorizontal: 14,
     paddingVertical: 7,
     borderRadius: 20,
-    marginBottom: 14,
+    marginBottom: 16,
   },
-  pillDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: GREEN_DARK },
-  pillText: { color: GREEN_DARK, fontSize: 11, fontWeight: '800', letterSpacing: 0.8 },
-  helloRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
-  helloText: { color: '#FFFFFF', fontSize: 30, fontWeight: '800' },
-  hand: { fontSize: 26 },
-  heroText: { color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 21 },
+  pillDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#0d3827' },
+  pillText: { color: '#0d3827', fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  helloRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+  helloText: { color: '#FFFFFF', fontSize: 34, fontWeight: '900' },
+  hand: { fontSize: 30 },
+  heroTitle: { color: '#BBF7D0', fontSize: 18, fontWeight: '800', lineHeight: 28, marginBottom: 8 },
+  heroText: { color: 'rgba(255,255,255,0.85)', fontSize: 14, lineHeight: 21, maxWidth: 460 },
+  ctaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 20 },
+  ctaMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#FACC15',
+    paddingHorizontal: 20,
+    paddingVertical: 13,
+    borderRadius: 14,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer', boxShadow: '0 8px 24px rgba(250,204,21,0.35)' } : {}),
+  },
+  ctaMainText: { color: '#0d3827', fontWeight: '900', fontSize: 14 },
+  ctaGhost: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    paddingHorizontal: 18,
+    paddingVertical: 13,
+    borderRadius: 14,
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  ctaGhostText: { color: '#FFFFFF', fontWeight: '700', fontSize: 14 },
 
   // ---------- Contenido ----------
   content: {
     width: '100%',
-    maxWidth: 720,
     alignSelf: 'center',
-    paddingHorizontal: 22,
-    paddingTop: 22,
-    paddingBottom: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 30,
   },
-  bannerWrap: { marginBottom: 24 },
-  banner: {
-    height: 190,
-    borderRadius: 24,
-    overflow: 'hidden',
-    backgroundColor: GREEN_DARK,
-    justifyContent: 'flex-end',
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-  },
-  bannerContent: { padding: 18 },
-  bannerPill: {
+  statsRow: { flexDirection: 'row', gap: 10, marginTop: -60, marginBottom: 30 },
+  statIcon: { width: 38, height: 38, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  statValue: { fontSize: 24, fontWeight: '900' },
+  statLabel: { fontSize: 11.5, fontWeight: '600', marginTop: 1 },
+
+  sectionHead: { marginBottom: 16 },
+  kicker: { fontSize: 11, fontWeight: '800', letterSpacing: 1.6, marginBottom: 4 },
+  sectionTitle: { fontSize: 22, fontWeight: '900' },
+
+  duo: { flexDirection: 'row', gap: 16 },
+  localCard: { borderRadius: 24, overflow: 'hidden', justifyContent: 'flex-end', backgroundColor: '#0d3827' },
+  localInfo: { padding: 22 },
+  localTag: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 6,
-    backgroundColor: 'rgba(13,56,39,0.75)',
+    backgroundColor: '#FACC15',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 10,
-    marginBottom: 8,
+    marginBottom: 10,
   },
-  bannerPillText: { color: '#BBF7D0', fontSize: 10, fontWeight: '700', letterSpacing: 0.6 },
-  bannerTitle: { color: '#FFFFFF', fontSize: 19, fontWeight: '800', lineHeight: 24 },
-  bannerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 12, marginTop: 4 },
+  localTagText: { color: '#0d3827', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
+  localTitle: { color: '#FFFFFF', fontSize: 22, fontWeight: '900' },
+  localSub: { color: 'rgba(255,255,255,0.9)', fontSize: 13, marginTop: 4, fontWeight: '600' },
+  localSub2: { color: '#BBF7D0', fontSize: 12, marginTop: 2 },
 
-  sectionHead: { marginBottom: 12 },
-  sectionTitle: { fontSize: 18, fontWeight: '800', color: DARK },
+  cardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 13,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  cardTitle: { fontSize: 17, fontWeight: '800', marginBottom: 8 },
+  missionText: { fontSize: 14, lineHeight: 24 },
+  commitRow: { flexDirection: 'row', gap: 14 },
+  commitText: { fontSize: 13, lineHeight: 20 },
 
-  // ---------- Módulos ----------
-  moduleCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 18,
-    padding: 16,
+  marquee: { overflow: 'hidden', width: '100%', paddingVertical: 4 },
+  marqueeRow: { flexDirection: 'row' },
+  brandChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    ...(Platform.OS === 'web'
-      ? { cursor: 'pointer', transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' }
-      : {}),
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 30,
+    borderWidth: 1,
+    marginRight: 12,
   },
-  moduleCardHover: {
-    borderColor: GREEN_MAIN,
-    backgroundColor: '#F9FEFB',
-    ...(Platform.OS === 'web'
-      ? { transform: 'translateY(-3px)', boxShadow: '0 0 20px rgba(0, 138, 59, 0.40)' }
-      : {}),
-  },
-  moduleIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  moduleTitle: { fontSize: 15, fontWeight: 'bold', color: DARK, marginBottom: 2 },
-  moduleDesc: { fontSize: 12, color: '#6B7280', lineHeight: 16 },
-  soonBadge: {
-    backgroundColor: '#FEF3C7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    marginBottom: 2,
-  },
-  soonText: { color: '#B45309', fontSize: 8, fontWeight: '800', letterSpacing: 0.5 },
-  moduleArrow: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    ...(Platform.OS === 'web' ? { transition: 'all 0.3s ease' } : {}),
-  },
+  brandChipText: { fontSize: 14, fontWeight: '800' },
 
-  // ---------- Misión y compromiso ----------
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    padding: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-  },
-  missionText: { fontSize: 14, color: '#4B5563', lineHeight: 24, textAlign: 'justify' },
-  commitCard: { flexDirection: 'row', gap: 14, padding: 16 },
-  commitIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: '#E6F4D7',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  commitTitle: { fontSize: 15, fontWeight: '800', color: DARK, marginBottom: 4 },
-  commitText: { fontSize: 12.5, color: '#6B7280', lineHeight: 19 },
-
-  // ---------- Cita ----------
   quoteCard: {
-    backgroundColor: '#EAF3EC',
-    borderRadius: 22,
-    borderWidth: 1.5,
-    borderColor: '#D5E6D9',
-    paddingVertical: 24,
-    paddingHorizontal: 20,
+    borderRadius: 26,
+    overflow: 'hidden',
+    paddingVertical: 32,
+    paddingHorizontal: 26,
     alignItems: 'center',
-    gap: 14,
+    gap: 16,
   },
   quoteText: {
-    fontSize: 13.5,
+    color: '#FFFFFF',
+    fontSize: 17,
     fontStyle: 'italic',
-    color: '#4B5563',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 27,
+    maxWidth: 620,
+    fontWeight: '600',
   },
-  quoteBrand: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  quoteLogo: { width: 20, height: 20 },
-  quoteBrandText: { fontSize: 11, fontWeight: '800', color: '#6B7280', letterSpacing: 1 },
+  quoteBrand: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  quoteLogoBox: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quoteLogo: { width: 22, height: 22 },
+  quoteBrandText: { color: '#FACC15', fontSize: 11, fontWeight: '800', letterSpacing: 1.4 },
 
-  bottomBar: { height: 10, width: '100%', flexDirection: 'row', marginTop: 20 },
+  bottomBar: { height: 10, width: '100%', flexDirection: 'row' },
 });

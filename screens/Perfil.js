@@ -28,6 +28,7 @@ import {
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 import { auth, db } from '../src/config/firebaseConfig';
+import { useTheme } from '../src/theme/ThemeContext';
 
 // =========================================================================
 // CONSTANTES Y PALETA CORPORATIVA (misma que Home y Proveedores)
@@ -58,6 +59,12 @@ const PASSWORD_RULES = [
   { key: 'num', label: 'Número', test: (p) => /\d/.test(p) },
   { key: 'sym', label: 'Carácter especial', test: (p) => /[^A-Za-z0-9\s]/.test(p) },
 ];
+
+// Devuelve los estilos del tema actual (se recalculan solo al cambiar de tema)
+const useStyles = () => {
+  const { colors } = useTheme();
+  return React.useMemo(() => makeStyles(colors), [colors]);
+};
 
 const onlyLetters = (text) => text.replace(/[^A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]/g, '');
 
@@ -119,9 +126,17 @@ function Gradient({ id, from, to }) {
 // CAMPO DE TEXTO (mismo estilo que el formulario de Proveedores)
 // =========================================================================
 function Field({ label, icon, error, editable = true, right, ...props }) {
+  const styles = useStyles();
+  const { colors: c, isDark } = useTheme();
   const [focused, setFocused] = useState(false);
-  const borderColor = error ? '#EF4444' : focused ? GREEN_MAIN : '#E5E7EB';
-  const backgroundColor = !editable ? '#F3F4F6' : error ? '#FEF2F2' : focused ? '#FFFFFF' : '#FAFAFA';
+  const borderColor = error ? '#EF4444' : focused ? c.greenMain : c.border;
+  const backgroundColor = !editable
+    ? c.surfaceAlt
+    : error
+    ? (isDark ? 'rgba(239,68,68,0.12)' : '#FEF2F2')
+    : focused
+    ? c.surface
+    : c.surfaceAlt;
 
   return (
     <View style={{ width: '100%', marginBottom: 14 }}>
@@ -130,13 +145,13 @@ function Field({ label, icon, error, editable = true, right, ...props }) {
         <FontAwesome
           name={icon}
           size={16}
-          color={error ? '#EF4444' : focused ? GREEN_MAIN : '#9CA3AF'}
+          color={error ? '#EF4444' : focused ? c.greenMain : '#9CA3AF'}
           style={styles.inputIcon}
         />
         <TextInput
           style={[
             styles.input,
-            !editable && { color: '#6B7280' },
+            !editable && { color: c.textMuted },
             Platform.OS === 'web' && { outlineStyle: 'none' },
           ]}
           placeholderTextColor="#9CA3AF"
@@ -159,6 +174,8 @@ function Field({ label, icon, error, editable = true, right, ...props }) {
 
 // Botón principal verde con efecto de presión
 function PrimaryButton({ title, icon, onPress, loading, variant = 'primary' }) {
+  const styles = useStyles();
+  const { colors: c } = useTheme();
   const scale = useRef(new Animated.Value(1)).current;
   const danger = variant === 'danger';
   const outline = variant === 'outline';
@@ -180,21 +197,21 @@ function PrimaryButton({ title, icon, onPress, loading, variant = 'primary' }) {
         ]}
       >
         {loading ? (
-          <ActivityIndicator color={outline ? GREEN_MAIN : '#FFFFFF'} />
+          <ActivityIndicator color={outline ? c.greenMain : '#FFFFFF'} />
         ) : (
           <>
             {!!icon && (
               <FontAwesome
                 name={icon}
                 size={15}
-                color={danger ? '#DC2626' : outline ? GREEN_MAIN : '#FFFFFF'}
+                color={danger ? '#DC2626' : outline ? c.greenMain : '#FFFFFF'}
               />
             )}
             <Text
               style={[
                 styles.btnText,
                 danger && { color: '#DC2626' },
-                outline && { color: GREEN_MAIN },
+                outline && { color: c.greenMain },
               ]}
             >
               {title}
@@ -210,6 +227,8 @@ function PrimaryButton({ title, icon, onPress, loading, variant = 'primary' }) {
 // PANTALLA MI PERFIL
 // =========================================================================
 export default function Perfil({ navigation }) {
+  const styles = useStyles();
+  const { colors: c, isDark, toggleTheme } = useTheme();
   const user = auth.currentUser;
 
   // ---------- Estado de datos personales ----------
@@ -470,17 +489,20 @@ export default function Perfil({ navigation }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar backgroundColor={GREEN_DARK} barStyle="dark-content" translucent />
+      <StatusBar backgroundColor={c.bg} barStyle={c.statusBar} translucent />
 
       {/* ================= BARRA SUPERIOR ================= */}
       <View style={styles.topBar}>
         <TouchableOpacity style={styles.menuBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-          <FontAwesome name="arrow-left" size={16} color={GREEN_MAIN} />
+          <FontAwesome name="arrow-left" size={16} color={c.greenMain} />
         </TouchableOpacity>
         <Image source={require('../assets/logo.png')} style={styles.topLogo} resizeMode="contain" />
         <Text style={styles.topTitle} numberOfLines={1}>
           Mi Perfil
         </Text>
+        <TouchableOpacity style={styles.menuBtn} onPress={toggleTheme} activeOpacity={0.8}>
+          <FontAwesome name={isDark ? 'moon-o' : 'sun-o'} size={16} color={isDark ? '#FACC15' : c.gold} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -532,19 +554,19 @@ export default function Perfil({ navigation }) {
           <Animated.View style={[styles.card, fadeUp()]}>
             <View style={styles.cardHead}>
               <View style={styles.cardIcon}>
-                <FontAwesome name="user" size={16} color={GREEN_MAIN} />
+                <FontAwesome name="user" size={16} color={c.greenMain} />
               </View>
               <Text style={styles.cardTitle}>Datos personales</Text>
               {!editing && !loading && (
                 <TouchableOpacity onPress={startEdit} style={styles.editBtn}>
-                  <FontAwesome name="pencil" size={12} color={GREEN_MAIN} />
+                  <FontAwesome name="pencil" size={12} color={c.greenMain} />
                   <Text style={styles.editText}>Editar</Text>
                 </TouchableOpacity>
               )}
             </View>
 
             {loading ? (
-              <ActivityIndicator color={GREEN_MAIN} style={{ marginVertical: 20 }} />
+              <ActivityIndicator color={c.greenMain} style={{ marginVertical: 20 }} />
             ) : editing ? (
               <>
                 <Field
@@ -607,7 +629,7 @@ export default function Perfil({ navigation }) {
           <Animated.View style={[styles.card, fadeUp(32)]}>
             <View style={styles.cardHead}>
               <View style={styles.cardIcon}>
-                <FontAwesome name="lock" size={16} color={GREEN_MAIN} />
+                <FontAwesome name="lock" size={16} color={c.greenMain} />
               </View>
               <Text style={styles.cardTitle}>Seguridad</Text>
             </View>
@@ -652,8 +674,8 @@ export default function Perfil({ navigation }) {
                     const ok = r.test(pwd.nueva);
                     return (
                       <View key={r.key} style={[styles.rule, ok && styles.ruleOk]}>
-                        <FontAwesome name={ok ? 'check' : 'circle-o'} size={10} color={ok ? GREEN_MAIN : '#9CA3AF'} />
-                        <Text style={[styles.ruleText, ok && { color: GREEN_MAIN }]}>{r.label}</Text>
+                        <FontAwesome name={ok ? 'check' : 'circle-o'} size={10} color={ok ? c.greenMain : '#9CA3AF'} />
+                        <Text style={[styles.ruleText, ok && { color: c.greenMain }]}>{r.label}</Text>
                       </View>
                     );
                   })}
@@ -728,6 +750,7 @@ export default function Perfil({ navigation }) {
 
 // Fila de dato (modo lectura)
 function InfoRow({ icon, label, value, last }) {
+  const styles = useStyles();
   return (
     <View style={[styles.infoRow, last && { borderBottomWidth: 0 }]}>
       <FontAwesome name={icon} size={14} color="#9CA3AF" style={{ width: 22 }} />
@@ -742,10 +765,11 @@ function InfoRow({ icon, label, value, last }) {
 // =========================================================================
 // ESTILOS
 // =========================================================================
-const styles = StyleSheet.create({
+// Estilos que dependen del tema (claro / oscuro)
+const makeStyles = (c) => StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: PAGE_BG,
+    backgroundColor: c.bg,
     paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0,
     ...(Platform.OS === 'web' ? { height: '100vh', overflow: 'hidden' } : {}),
   },
@@ -766,22 +790,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: '#FBFDFB',
+    backgroundColor: c.surface,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: c.border,
   },
   menuBtn: {
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#E6F4EA',
+    backgroundColor: c.accentSoft,
     justifyContent: 'center',
     alignItems: 'center',
   },
   topLogo: { width: 32, height: 32 },
-  topTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: DARK },
+  topTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: c.text },
 
   // ---------- Tarjeta principal ----------
   hero: {
@@ -851,7 +875,9 @@ const styles = StyleSheet.create({
 
   // ---------- Tarjetas ----------
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.border,
     borderRadius: 20,
     padding: 18,
     elevation: 2,
@@ -865,34 +891,34 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: '#E6F4D7',
+    backgroundColor: c.accentSoft,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  cardTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: DARK },
+  cardTitle: { flex: 1, fontSize: 16, fontWeight: '800', color: c.text },
   editBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#E6F4EA',
+    backgroundColor: c.accentSoft,
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: 10,
   },
-  editText: { color: GREEN_MAIN, fontWeight: '700', fontSize: 12 },
+  editText: { color: c.greenMain, fontWeight: '700', fontSize: 12 },
 
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 11,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: c.surfaceAlt,
   },
-  infoLabel: { fontSize: 13, color: '#6B7280', width: 120 },
-  infoValue: { flex: 1, fontSize: 13, color: DARK, fontWeight: '600', textAlign: 'right' },
+  infoLabel: { fontSize: 13, color: c.textMuted, width: 120 },
+  infoValue: { flex: 1, fontSize: 13, color: c.text, fontWeight: '600', textAlign: 'right' },
 
   // ---------- Campos ----------
-  label: { fontSize: 12, fontWeight: '700', color: '#1F2937', marginBottom: 4 },
+  label: { fontSize: 12, fontWeight: '700', color: c.text, marginBottom: 4 },
   inputBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -903,7 +929,7 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   inputIcon: { width: 22, marginRight: 6 },
-  input: { flex: 1, color: DARK, fontSize: 13, height: '100%' },
+  input: { flex: 1, color: c.text, fontSize: 13, height: '100%' },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   errorText: { color: '#DC2626', fontSize: 11 },
 
@@ -912,27 +938,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: c.surfaceAlt,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
   },
-  ruleOk: { backgroundColor: '#E6F4EA' },
-  ruleText: { fontSize: 11, color: '#6B7280' },
+  ruleOk: { backgroundColor: c.accentSoft },
+  ruleText: { fontSize: 11, color: c.textMuted },
 
   // ---------- Botones ----------
   row: { flexDirection: 'row', gap: 10, marginTop: 4 },
   btn: {
     height: 48,
     borderRadius: 14,
-    backgroundColor: GREEN_MAIN,
+    backgroundColor: c.greenMain,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
   },
-  btnOutline: { backgroundColor: '#FFFFFF', borderWidth: 1.5, borderColor: GREEN_MAIN },
+  btnOutline: { backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.greenMain },
   btnDanger: { backgroundColor: '#FEE2E2', borderWidth: 1.5, borderColor: '#FCA5A5' },
   btnText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
 
