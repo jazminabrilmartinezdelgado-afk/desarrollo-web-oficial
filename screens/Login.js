@@ -713,7 +713,7 @@ export default function Login({ navigation }) {
                   <Text style={styles.label}>Correo electrónico</Text>
                   <Input
                     icon="envelope-o"
-                    placeholder="ejemplo@correo.com"
+                    placeholder="ejemplo@correo.com / ejemplo@hotmail.com"
                     value={email}
                     onChangeText={(t) => {
                       setEmail(t);
@@ -767,6 +767,8 @@ export default function Login({ navigation }) {
                 {/* BOTÓN CON DEGRADADO, BRILLO Y ANIMACIÓN */}
                 <Animated.View
                   style={{
+                    width: '90%',
+                    alignSelf: 'center',
                     opacity: btnAnim,
                     transform: [
                       { translateY: btnAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) },
