@@ -511,7 +511,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
     if (!form.email.trim()) {
       e.email = 'El email es obligatorio';
     } else if (!EMAIL_REGEX.test(form.email.trim())) {
-      e.email = 'Debe ser un correo válido de @gmail.com o @hotmail.com';
+      e.email = 'Debe ser un correo válido con @gmail.com o @hotmail.com';
     }
 
     if (!form.direccion.trim()) {
