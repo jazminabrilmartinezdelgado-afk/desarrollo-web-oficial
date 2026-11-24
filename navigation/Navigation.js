@@ -8,12 +8,38 @@ import { useTheme } from '../src/theme/ThemeContext';
 
 // Ancho máximo de la app: en la compu se ve como un celular centrado
 export const APP_MAX_WIDTH = 480;
+// ---------- ARREGLO DE TEXTOS CORTADOS EN ANDROID ----------
+// En algunos celulares (Samsung, Xiaomi…) se cortaba la última palabra
+// ("Confirme su", "¿No tiene una"). Con una fuente fija se mide bien.
+// Solo en Android: en iPhone y en la compu no cambia nada.
+if (Platform.OS === 'android' && !StyleSheet.__textFix) {
+  try {
+    const TEXT_KEYS = ['fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'textAlign', 'color'];
+    const originalCreate = StyleSheet.create;
+    StyleSheet.create = (styles) => {
+      const fixed = {};
+      Object.keys(styles || {}).forEach((key) => {
+        const st = styles[key];
+        const isText =
+          st && typeof st === 'object' && !Array.isArray(st) && st.fontFamily == null &&
+          TEXT_KEYS.some((k) => st[k] != null);
+        fixed[key] = isText ? { fontFamily: 'Roboto', ...st } : st;
+      });
+      return originalCreate(fixed);
+    };
+    StyleSheet.__textFix = true;
+  } catch (e) {
+    // Si no se puede aplicar, la app sigue igual que antes
+  }
+}
+
 // Importación de pantallas del sistema
-import Login from '../screens/Login';
-import SignUp from '../screens/SignUp';
-import Home from '../screens/Home';
-import Proveedores from '../screens/Proveedores';
-import Perfil from '../screens/Perfil';
+// (con require para que se carguen DESPUÉS del arreglo de arriba)
+const Login = require('../screens/Login').default;
+const SignUp = require('../screens/SignUp').default;
+const Home = require('../screens/Home').default;
+const Proveedores = require('../screens/Proveedores').default;
+const Perfil = require('../screens/Perfil').default;
 
 const Stack = createStackNavigator();
 
@@ -78,6 +104,23 @@ export default function Navigation() {
   // Estados para controlar el usuario actual y la carga inicial
   const [user, setUser] = useState(null); // Cambiamos a null por defecto para evitar bucles de carga infinita en web
   const [loading, setLoading] = useState(true);
+
+  // ---------- EVITAR LA TRADUCCIÓN AUTOMÁTICA DEL NAVEGADOR (solo web) ----------
+  // Chrome detectaba mal el idioma y traducía la app: cambiaba textos
+  // ("Completa", "Proveedor de registro") y dejaba datos viejos en pantalla
+  // ("Hola, Usuario" en lugar del nombre). Se indica que la página está en
+  // español y que no debe traducirse.
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    document.documentElement.lang = 'es';
+    document.documentElement.setAttribute('translate', 'no');
+    if (!document.querySelector('meta[name="google"]')) {
+      const meta = document.createElement('meta');
+      meta.name = 'google';
+      meta.content = 'notranslate';
+      document.head.appendChild(meta);
+    }
+  }, []);
 
   // ---------- OCULTAR BARRAS DE SCROLL EN WEB (el scroll sigue funcionando) ----------
   useEffect(() => {

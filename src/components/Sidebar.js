@@ -9,6 +9,7 @@ import {
   Easing,
   Platform,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useTheme } from '../theme/ThemeContext';
@@ -129,6 +130,8 @@ function SidebarContent({ active, profile, onNavigate, onLogout, open, onClose }
   const { colors: c } = useTheme();
   const appear = useRef(new Animated.Value(0)).current;
   const [profileHover, setProfileHover] = useState(false);
+  // Ventana para confirmar el cierre de sesión
+  const [logoutOpen, setLogoutOpen] = useState(false);
 
   // Animación de entrada cada vez que se abre
   useEffect(() => {
@@ -217,11 +220,43 @@ function SidebarContent({ active, profile, onNavigate, onLogout, open, onClose }
           <FontAwesome name="chevron-right" size={11} color={c.textMuted} />
         </Pressable>
 
-        <Pressable onPress={onLogout} style={styles.logout}>
+        <Pressable onPress={() => setLogoutOpen(true)} style={styles.logout}>
           <FontAwesome name="sign-out" size={15} color="#EF4444" />
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </Pressable>
       </View>
+
+      {/* Confirmar cierre de sesión (igual que en Mi perfil) */}
+      <Modal transparent animationType="fade" visible={logoutOpen} onRequestClose={() => setLogoutOpen(false)} statusBarTranslucent>
+        <View style={styles.confirmBackdrop}>
+          <View style={[styles.confirmBox, { backgroundColor: c.surface }]}>
+            <View style={styles.confirmIcon}>
+              <FontAwesome name="sign-out" size={26} color="#DC2626" />
+            </View>
+            <Text style={[styles.confirmTitle, { color: c.text }]}>¿Está seguro de que desea cerrar sesión?</Text>
+            <Text style={[styles.confirmText, { color: c.textMuted }]}>
+              Tendrá que volver a ingresar con su correo y contraseña.
+            </Text>
+            <View style={styles.confirmRow}>
+              <Pressable
+                style={[styles.confirmBtn, { backgroundColor: c.surfaceAlt }]}
+                onPress={() => setLogoutOpen(false)}
+              >
+                <Text style={[styles.confirmBtnText, { color: c.text }]}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.confirmBtn, { backgroundColor: '#DC2626' }]}
+                onPress={() => {
+                  setLogoutOpen(false);
+                  onLogout();
+                }}
+              >
+                <Text style={[styles.confirmBtnText, { color: '#FFFFFF' }]}>Cerrar sesión</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -372,4 +407,42 @@ const styles = StyleSheet.create({
   profileLink: { fontSize: 11.5, fontWeight: '700', marginTop: 1 },
   logout: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 14 },
   logoutText: { color: '#EF4444', fontWeight: '700', fontSize: 13 },
+
+  // Confirmar cierre de sesión
+  confirmBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  confirmBox: {
+    borderRadius: 22,
+    padding: 24,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 380,
+    elevation: 10,
+  },
+  confirmIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  confirmTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 6, textAlign: 'center' },
+  confirmText: { fontSize: 13, textAlign: 'center', marginBottom: 20 },
+  confirmRow: { flexDirection: 'row', gap: 12, width: '100%' },
+  confirmBtn: {
+    flex: 1,
+    height: 46,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...(Platform.OS === 'web' ? { cursor: 'pointer' } : {}),
+  },
+  confirmBtnText: { fontSize: 14, fontWeight: 'bold' },
 });

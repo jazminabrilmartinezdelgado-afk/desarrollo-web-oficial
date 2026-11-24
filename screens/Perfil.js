@@ -14,6 +14,7 @@ import {
   Easing,
   TextInput,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -23,6 +24,7 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
   sendEmailVerification,
+  sendPasswordResetEmail,
   signOut,
 } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -152,17 +154,28 @@ const mapPasswordError = (code) => {
 // =========================================================================
 // DEGRADADO CON SVG
 // =========================================================================
+// Se mide el tamaño real del contenedor: en Android el "100%" a veces
+// no cubre todo el fondo (quedaba una franja sin color)
 function Gradient({ id, from, to }) {
+  const [size, setSize] = useState(null);
+  const w = size ? size.width : '100%';
+  const h = size ? size.height : '100%';
   return (
-    <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
-      <Defs>
-        <LinearGradient id={id} x1="0" y1="0" x2="1" y2="1">
-          <Stop offset="0" stopColor={from} />
-          <Stop offset="1" stopColor={to} />
-        </LinearGradient>
-      </Defs>
-      <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
-    </Svg>
+    <View
+      pointerEvents="none"
+      style={StyleSheet.absoluteFill}
+      onLayout={(e) => setSize(e.nativeEvent.layout)}
+    >
+      <Svg width={w} height={h} preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={from} />
+            <Stop offset="1" stopColor={to} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width={w} height={h} fill={`url(#${id})`} />
+      </Svg>
+    </View>
   );
 }
 
@@ -295,6 +308,10 @@ export default function Perfil({ navigation }) {
   const [showActual, setShowActual] = useState(false);
   const [showNueva, setShowNueva] = useState(false);
   const [showConfirmar, setShowConfirmar] = useState(false);
+  const [resetSending, setResetSending] = useState(false); // enviando correo de recuperación
+
+  // Ventana para confirmar el cierre de sesión
+  const [logoutOpen, setLogoutOpen] = useState(false);
 
   // Barra de seguridad de la nueva contraseña
   const strength = getPasswordStrength(pwd.nueva);
@@ -539,9 +556,32 @@ export default function Perfil({ navigation }) {
     }
   };
 
+  // ---------- OLVIDÉ MI CONTRASEÑA ----------
+  // Envía el correo para restablecerla a la dirección de la cuenta
+  const sendReset = async () => {
+    if (resetSending) return;
+    setResetSending(true);
+    try {
+      await sendPasswordResetEmail(auth, user.email);
+      closePwd();
+      showToast(`Le enviamos un correo a ${user.email} para restablecer su contraseña`);
+    } catch (err) {
+      console.error('Error al enviar la recuperación:', err);
+      showToast(
+        err.code === 'auth/too-many-requests'
+          ? 'Demasiados intentos. Espere unos minutos.'
+          : 'No se pudo enviar el correo de recuperación',
+        'error'
+      );
+    } finally {
+      setResetSending(false);
+    }
+  };
+
   // ---------- CERRAR SESIÓN ----------
   // Navigation.js detecta el cambio de sesión y vuelve solo al Login
   const handleLogout = async () => {
+    setLogoutOpen(false);
     try {
       await signOut(auth);
     } catch (err) {
@@ -573,7 +613,7 @@ export default function Perfil({ navigation }) {
 
       {/* ================= BARRA SUPERIOR ================= */}
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.menuBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+        <TouchableOpacity style={styles.menuBtn} onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))} activeOpacity={0.8}>
           <FontAwesome name="arrow-left" size={16} color={c.greenMain} />
         </TouchableOpacity>
         <Image source={require('../assets/logo.png')} style={styles.topLogo} resizeMode="contain" />
@@ -717,12 +757,14 @@ export default function Perfil({ navigation }) {
             </View>
 
             {!pwdOpen ? (
-              <PrimaryButton
-                title="Cambiar contraseña"
-                icon="key"
-                variant="outline"
-                onPress={() => setPwdOpen(true)}
-              />
+              <View style={styles.pwdBtnWrap}>
+                <PrimaryButton
+                  title="Cambiar contraseña"
+                  icon="key"
+                  variant="outline"
+                  onPress={() => setPwdOpen(true)}
+                />
+              </View>
             ) : (
               <>
                 <Field
@@ -842,8 +884,18 @@ export default function Perfil({ navigation }) {
           </Animated.View>
 
           {/* ================= CERRAR SESIÓN ================= */}
-          <Animated.View style={fadeUp(40)}>
-            <PrimaryButton title="Cerrar sesión" icon="sign-out" variant="danger" onPress={handleLogout} />
+          {/* ¿Olvidó su contraseña? (siempre visible, arriba de Cerrar sesión) */}
+          <Animated.View style={[styles.forgotWrap, fadeUp(36)]}>
+            <TouchableOpacity onPress={sendReset} disabled={resetSending} style={styles.forgotBtn}>
+              <Text style={styles.forgotText}>
+                {resetSending ? 'Enviando…' : '¿Olvidó su contraseña?'}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Botón más angosto y centrado; abre la confirmación antes de salir */}
+          <Animated.View style={[styles.logoutWrap, fadeUp(40)]}>
+            <PrimaryButton title="Cerrar sesión" icon="sign-out" variant="danger" onPress={() => setLogoutOpen(true)} />
           </Animated.View>
         </View>
 
@@ -853,6 +905,30 @@ export default function Perfil({ navigation }) {
           <View style={{ flex: 4, backgroundColor: GREEN_DARK }} />
         </View>
       </ScrollView>
+
+      {/* ================= CONFIRMAR CIERRE DE SESIÓN ================= */}
+      <Modal transparent animationType="fade" visible={logoutOpen} onRequestClose={() => setLogoutOpen(false)} statusBarTranslucent>
+        <View style={styles.confirmBackdrop}>
+          <View style={styles.confirmBox}>
+            <View style={styles.confirmIcon}>
+              <FontAwesome name="sign-out" size={26} color="#DC2626" />
+            </View>
+            <Text style={styles.confirmTitle}>¿Está seguro de que desea cerrar sesión?</Text>
+            <Text style={styles.confirmText}>Tendrá que volver a ingresar con su correo y contraseña.</Text>
+            <View style={styles.confirmRow}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { backgroundColor: c.surfaceAlt }]}
+                onPress={() => setLogoutOpen(false)}
+              >
+                <Text style={[styles.confirmBtnText, { color: c.text }]}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.confirmBtn, { backgroundColor: '#DC2626' }]} onPress={handleLogout}>
+                <Text style={[styles.confirmBtnText, { color: '#FFFFFF' }]}>Cerrar sesión</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* ================= TOAST ================= */}
       <Animated.View
@@ -1060,7 +1136,7 @@ const makeStyles = (c) => StyleSheet.create({
   inputIcon: { width: 22, marginRight: 6 },
   input: { flex: 1, color: c.text, fontSize: 13, height: '100%' },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  errorText: { color: '#DC2626', fontSize: 11 },
+  errorText: { color: '#DC2626', fontSize: 11, flexShrink: 1 },
 
   hintText: { color: c.textMuted, fontSize: 11, lineHeight: 16, marginTop: -8, marginBottom: 14 },
   strengthBox: {
@@ -1126,4 +1202,47 @@ const makeStyles = (c) => StyleSheet.create({
   toastText: { color: '#FFFFFF', fontSize: 13, fontWeight: '600', flex: 1 },
 
   bottomBar: { height: 10, width: '100%', flexDirection: 'row' },
+
+  // Tamaño del botón Cerrar sesión: cambiar width (ancho) y minWidth (ancho mínimo)
+  logoutWrap: { width: '80%', minWidth: 200, alignSelf: 'center' },
+
+  // Tamaño del botón Cambiar contraseña: cambiar width (ancho) y minWidth (ancho mínimo)
+  pwdBtnWrap: { width: '90%', minWidth: 200, alignSelf: 'center' },
+
+  // ---------- ¿Olvidó su contraseña? ----------
+  forgotWrap: { alignSelf: 'center', marginBottom: -6 },
+  forgotBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 4 },
+  forgotText: { color: c.greenMain, fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' },
+
+  // ---------- Confirmar cierre de sesión (igual que la baja de proveedor) ----------
+  confirmBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  confirmBox: {
+    backgroundColor: c.surface,
+    borderRadius: 22,
+    padding: 24,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 380,
+    elevation: 10,
+  },
+  confirmIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FEE2E2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  confirmTitle: { fontSize: 18, fontWeight: 'bold', color: c.text, marginBottom: 6, textAlign: 'center' },
+  confirmText: { fontSize: 13, color: c.textMuted, textAlign: 'center', marginBottom: 20 },
+  confirmRow: { flexDirection: 'row', gap: 12, width: '100%' },
+  confirmBtn: { flex: 1, height: 46, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  confirmBtnText: { fontSize: 14, fontWeight: 'bold' },
 });

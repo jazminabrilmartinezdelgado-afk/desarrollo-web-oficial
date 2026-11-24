@@ -131,17 +131,28 @@ const isActivo = (p) => p.estado !== false && p.estado !== 'inactivo';
 // =========================================================================
 // DEGRADADO CON SVG (sin librerías extra)
 // =========================================================================
+// Se mide el tamaño real del contenedor: en Android el "100%" a veces
+// no cubre todo el fondo (quedaba una franja sin color)
 function Gradient({ id, from, to, x2 = '1', y2 = '1', fromOpacity = 1, toOpacity = 1 }) {
+  const [size, setSize] = useState(null);
+  const w = size ? size.width : '100%';
+  const h = size ? size.height : '100%';
   return (
-    <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} preserveAspectRatio="none">
-      <Defs>
-        <LinearGradient id={id} x1="0" y1="0" x2={x2} y2={y2}>
-          <Stop offset="0" stopColor={from} stopOpacity={fromOpacity} />
-          <Stop offset="1" stopColor={to} stopOpacity={toOpacity} />
-        </LinearGradient>
-      </Defs>
-      <Rect x="0" y="0" width="100%" height="100%" fill={`url(#${id})`} />
-    </Svg>
+    <View
+      pointerEvents="none"
+      style={StyleSheet.absoluteFill}
+      onLayout={(e) => setSize(e.nativeEvent.layout)}
+    >
+      <Svg width={w} height={h} preserveAspectRatio="none">
+        <Defs>
+          <LinearGradient id={id} x1="0" y1="0" x2={x2} y2={y2}>
+            <Stop offset="0" stopColor={from} stopOpacity={fromOpacity} />
+            <Stop offset="1" stopColor={to} stopOpacity={toOpacity} />
+          </LinearGradient>
+        </Defs>
+        <Rect x="0" y="0" width={w} height={h} fill={`url(#${id})`} />
+      </Svg>
+    </View>
   );
 }
 
@@ -1196,7 +1207,7 @@ export default function Proveedores({ navigation }) {
       >
         <TouchableOpacity
           style={styles.menuBtn}
-          onPress={() => navigation.goBack()}
+          onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Home'))}
           activeOpacity={0.8}
         >
           <FontAwesome name="arrow-left" size={16} color={c.greenMain} />
@@ -1787,7 +1798,7 @@ const makeStyles = (c) => StyleSheet.create({
   inputIcon: { width: 22, marginRight: 6 },
   input: { flex: 1, color: c.text, fontSize: 13, height: '100%' },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-  errorText: { color: '#DC2626', fontSize: 11 },
+  errorText: { color: '#DC2626', fontSize: 11, flexShrink: 1 }, 
 
   switchRow: {
     flexDirection: 'row',
