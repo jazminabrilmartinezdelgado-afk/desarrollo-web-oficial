@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Pressable,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   Image,
   Platform,
@@ -16,6 +15,8 @@ import {
   ActivityIndicator,
   Modal,
 } from 'react-native';
+// SafeAreaView de react-native está en desuso: se usa el de react-native-safe-area-context
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -35,6 +36,9 @@ import { useTheme } from '../src/theme/ThemeContext';
 // =========================================================================
 // CONSTANTES Y PALETA CORPORATIVA (misma que Home y Proveedores)
 // =========================================================================
+// Bordes seguros solo en iPhone (igual que el SafeAreaView anterior)
+const SAFE_EDGES = Platform.OS === 'ios' ? ['top', 'right', 'bottom', 'left'] : [];
+
 const GREEN_DARK = '#0d3827';
 const GREEN_MAIN = '#008A3B';
 const GOLD_YELLOW = '#CAB118';
@@ -182,7 +186,7 @@ function Gradient({ id, from, to }) {
 // =========================================================================
 // CAMPO DE TEXTO (mismo estilo que el formulario de Proveedores)
 // =========================================================================
-function Field({ label, icon, error, editable = true, right, onBlur, ...props }) {
+function Field({ label, icon, error, editable = true, right, onBlur, inputRef, ...props }) {
   const styles = useStyles();
   const { colors: c, isDark } = useTheme();
   const [focused, setFocused] = useState(false);
@@ -206,6 +210,7 @@ function Field({ label, icon, error, editable = true, right, onBlur, ...props })
           style={styles.inputIcon}
         />
         <TextInput
+          ref={inputRef}
           style={[
             styles.input,
             !editable && { color: c.textMuted },
@@ -245,6 +250,7 @@ function PrimaryButton({ title, icon, onPress, loading, variant = 'primary' }) {
       <Pressable
         onPress={onPress}
         disabled={loading}
+        android_ripple={{ color: danger ? 'rgba(220,38,38,0.15)' : outline ? 'rgba(0,138,59,0.12)' : 'rgba(255,255,255,0.25)', foreground: true }} // onda al tocar (Android)
         onPressIn={() => Animated.spring(scale, { toValue: 0.96, useNativeDriver: true }).start()}
         onPressOut={() =>
           Animated.spring(scale, { toValue: 1, friction: 4, useNativeDriver: true }).start()
@@ -312,6 +318,12 @@ export default function Perfil({ navigation }) {
 
   // Ventana para confirmar el cierre de sesión
   const [logoutOpen, setLogoutOpen] = useState(false);
+
+  // Tecla "Siguiente": pasa al campo de abajo sin tocar la pantalla
+  const apellidoRef = useRef(null);
+  const telefonoRef = useRef(null);
+  const nuevaRef = useRef(null);
+  const confirmarRef = useRef(null);
 
   // Barra de seguridad de la nueva contraseña
   const strength = getPasswordStrength(pwd.nueva);
@@ -608,7 +620,7 @@ export default function Perfil({ navigation }) {
   });
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={SAFE_EDGES} style={styles.safeArea}>
       <StatusBar backgroundColor={c.bg} barStyle={c.statusBar} translucent />
 
       {/* ================= BARRA SUPERIOR ================= */}
@@ -697,6 +709,9 @@ export default function Perfil({ navigation }) {
                   error={errors.nombre}
                   maxLength={40}
                   autoCapitalize="words"
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => apellidoRef.current?.focus()}
                 />
                 <Field
                   label="Apellido"
@@ -706,6 +721,10 @@ export default function Perfil({ navigation }) {
                   error={errors.apellido}
                   maxLength={40}
                   autoCapitalize="words"
+                  inputRef={apellidoRef}
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => telefonoRef.current?.focus()}
                 />
                 <Field
                   label="Teléfono (opcional)"
@@ -714,6 +733,9 @@ export default function Perfil({ navigation }) {
                   onChangeText={setField('telefono')}
                   error={errors.telefono}
                   keyboardType="phone-pad"
+                  inputRef={telefonoRef}
+                  returnKeyType="done" // tecla "Listo": guarda
+                  onSubmitEditing={saveProfile}
                 />
                 <Field label="Correo electrónico" icon="envelope" value={user?.email || ''} editable={false} />
 
@@ -778,6 +800,9 @@ export default function Perfil({ navigation }) {
                   autoCapitalize="none"
                   autoCorrect={false}
                   autoComplete="current-password"
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => nuevaRef.current?.focus()}
                   right={
                     <TouchableOpacity onPress={() => setShowActual((s) => !s)} hitSlop={10}>
                       <FontAwesome name={showActual ? 'eye-slash' : 'eye'} size={16} color="#9CA3AF" />
@@ -795,6 +820,10 @@ export default function Perfil({ navigation }) {
                     validatePwdOnBlur('confirmar');
                   }}
                   error={pwdErrors.nueva}
+                  inputRef={nuevaRef}
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => confirmarRef.current?.focus()}
                   secureTextEntry={!showNueva}
                   autoCapitalize="none"
                   autoCorrect={false}
@@ -859,6 +888,8 @@ export default function Perfil({ navigation }) {
                   autoCorrect={false}
                   autoComplete="new-password"
                   maxLength={64}
+                  inputRef={confirmarRef}
+                  returnKeyType="done" // tecla "Listo": actualiza
                   onSubmitEditing={changePassword}
                   right={
                     <TouchableOpacity onPress={() => setShowConfirmar((s) => !s)} hitSlop={10}>

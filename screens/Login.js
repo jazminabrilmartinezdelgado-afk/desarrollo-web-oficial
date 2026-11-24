@@ -189,7 +189,7 @@ function Leaf({ size, color, rotate, style, delay = 0 }) {
 // =========================================================================
 // CAMPO DE TEXTO INTERACTIVO
 // =========================================================================
-function Input({ icon, right, ...props }) {
+function Input({ icon, right, inputRef, ...props }) {
   const focus = useRef(new Animated.Value(0)).current;
   const lift = useRef(new Animated.Value(0)).current;
   const [focused, setFocused] = useState(false);
@@ -228,6 +228,7 @@ function Input({ icon, right, ...props }) {
           style={styles.inputIcon}
         />
         <TextInput
+          ref={inputRef}
           style={[styles.input, Platform.OS === 'web' && { outlineStyle: 'none' }]}
           placeholderTextColor="#9CA3AF"
           onFocus={() => {
@@ -363,6 +364,7 @@ function ForgotModal({ initialEmail, onClose }) {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              returnKeyType="send" // la tecla Enter dice "Enviar"
               onSubmitEditing={send}
             />
           </View>
@@ -400,6 +402,9 @@ export default function Login({ navigation }) {
   const [errorMessage, setErrorMessage] = useState('');
   const [forgotVisible, setForgotVisible] = useState(false);
   const [btnW, setBtnW] = useState(360);
+
+  // Para pasar del correo a la contraseña con la tecla "Siguiente"
+  const passwordRef = useRef(null);
 
   // Animaciones
   const headerAnim = useRef(new Animated.Value(0)).current;
@@ -723,6 +728,9 @@ export default function Login({ navigation }) {
                     autoCapitalize="none"
                     autoCorrect={false}
                     autoComplete="email"
+                    returnKeyType="next" // tecla "Siguiente"
+                    submitBehavior="submit" // no cierra el teclado
+                    onSubmitEditing={() => passwordRef.current?.focus()}
                   />
                 </Animated.View>
 
@@ -739,6 +747,8 @@ export default function Login({ navigation }) {
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
                     autoComplete="current-password"
+                    inputRef={passwordRef}
+                    returnKeyType="done" // tecla "Listo": inicia sesión
                     onSubmitEditing={handleLogin}
                     right={
                       <TouchableOpacity
@@ -785,6 +795,7 @@ export default function Login({ navigation }) {
                     onPress={handleLogin}
                     onLayout={(e) => setBtnW(e.nativeEvent.layout.width)}
                     disabled={loading}
+                    android_ripple={{ color: 'rgba(255,255,255,0.25)', foreground: true }} // onda al tocar (Android)
                   >
                     <Gradient id="btnGrad" from="#0B8A3E" to="#00B04F" />
                     {!loading && (

@@ -8,7 +8,6 @@ import {
   TextInput,
   Modal,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   Image,
   Animated,
@@ -17,6 +16,8 @@ import {
   ActivityIndicator,
   Platform,
 } from 'react-native';
+// SafeAreaView de react-native está en desuso: se usa el de react-native-safe-area-context
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import {
@@ -36,6 +37,9 @@ import Svg, { Path, Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
 // =========================================================================
 // CONSTANTES Y PALETA CORPORATIVA
 // =========================================================================
+// Bordes seguros solo en iPhone (igual que el SafeAreaView anterior)
+const SAFE_EDGES = Platform.OS === 'ios' ? ['top', 'right', 'bottom', 'left'] : [];
+
 const GREEN_DARK = '#0d3827';
 const GREEN_MID = '#168A48';
 const GREEN_MAIN = '#008A3B';
@@ -181,7 +185,7 @@ function CountUp({ value, style }) {
 // CAMPO DE FORMULARIO
 // Muestra el error cuando el usuario termina de escribir y sale del campo.
 // =========================================================================
-function Field({ label, icon, error, onBlur: onFieldBlur, ...props }) {
+function Field({ label, icon, error, onBlur: onFieldBlur, inputRef, ...props }) {
   const styles = useStyles();
   const { colors: c } = useTheme();
 
@@ -236,6 +240,7 @@ function Field({ label, icon, error, onBlur: onFieldBlur, ...props }) {
         />
 
         <TextInput
+          ref={inputRef}
           style={[
             styles.input,
             Platform.OS === 'web' && { outlineStyle: 'none' },
@@ -332,6 +337,9 @@ function ProveedorCard({ item, index, onEdit, onToggle }) {
       <Pressable
         onPressIn={pressIn}
         onPressOut={pressOut}
+        onLongPress={toggleDetails} // mantener presionada la tarjeta muestra u oculta los detalles
+        delayLongPress={450} // tiempo que hay que mantenerla (ms)
+        android_ripple={{ color: 'rgba(0,138,59,0.12)' }} // onda al tocar (Android)
         {...(Platform.OS === 'web'
           ? {
               onMouseEnter: () => setHovered(true),
@@ -455,6 +463,12 @@ function FormModal({ proveedor, onClose, onSaved }) {
   const [banner, setBanner] = useState('');
   const [saving, setSaving] = useState(false);
   const [segW, setSegW] = useState(300);
+
+  // Tecla "Siguiente": pasa al campo de abajo sin tocar la pantalla
+  const apellidoRef = useRef(null);
+  const telefonoRef = useRef(null);
+  const emailRef = useRef(null);
+  const direccionRef = useRef(null);
 
   // Entrada escalonada de cada bloque del formulario
   const items = useRef([0, 1, 2, 3, 4, 5, 6].map(() => new Animated.Value(0))).current;
@@ -759,6 +773,9 @@ function FormModal({ proveedor, onClose, onSaved }) {
                   error={errors.nombre}
                   maxLength={50}
                   autoCapitalize="words"
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => apellidoRef.current?.focus()}
                 />
               </View>
               <View style={{ flex: 1 }}>
@@ -772,6 +789,10 @@ function FormModal({ proveedor, onClose, onSaved }) {
                   error={errors.apellido}
                   maxLength={50}
                   autoCapitalize="words"
+                  inputRef={apellidoRef}
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => telefonoRef.current?.focus()}
                 />
               </View>
             </Animated.View>
@@ -788,6 +809,10 @@ function FormModal({ proveedor, onClose, onSaved }) {
                 onChangeText={handlePhoneChange}
                 onBlur={() => validateField('telefono')}
                 error={errors.telefono}
+                inputRef={telefonoRef}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => emailRef.current?.focus()}
               />
             </Animated.View>
             <Animated.View style={fadeUpItem(items[4])}>
@@ -803,6 +828,10 @@ function FormModal({ proveedor, onClose, onSaved }) {
                 onChangeText={set('email')}
                 onBlur={() => validateField('email')}
                 error={errors.email}
+                inputRef={emailRef}
+                returnKeyType="next"
+                submitBehavior="submit"
+                onSubmitEditing={() => direccionRef.current?.focus()}
               />
               <Field
                 label="Dirección"
@@ -812,6 +841,8 @@ function FormModal({ proveedor, onClose, onSaved }) {
                 onChangeText={set('direccion')}
                 onBlur={() => validateField('direccion')}
                 error={errors.direccion}
+                inputRef={direccionRef}
+                returnKeyType="done" // tecla "Listo": cierra el teclado
               />
             </Animated.View>
 
@@ -876,6 +907,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
               onPress={save}
               onLayout={(e) => setBtnW(e.nativeEvent.layout.width)}
               disabled={saving}
+              android_ripple={{ color: 'rgba(255,255,255,0.25)', foreground: true }} // onda al tocar (Android)
             >
               <Gradient id="saveGrad" from="#0B8A3E" to="#00B04F" x2="1" y2="0" />
               {!saving && (
@@ -1190,7 +1222,7 @@ export default function Proveedores({ navigation }) {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={SAFE_EDGES} style={styles.safeArea}>
       <StatusBar backgroundColor={c.bg} barStyle={c.statusBar} translucent />
 
       {/* ================= BARRA SUPERIOR ================= */}
@@ -1899,3 +1931,4 @@ const makeStyles = (c) => StyleSheet.create({
   emptyTitle: { fontSize: 16, fontWeight: 'bold', color: c.text },
   emptyText: { fontSize: 13, color: c.textMuted, textAlign: 'center', marginTop: 4 },
 });
+

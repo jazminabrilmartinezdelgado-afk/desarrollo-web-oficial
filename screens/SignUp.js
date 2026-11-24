@@ -347,6 +347,7 @@ function Field({
   right,
   onBlur,
   onFocus,
+  inputRef, // para pasar al campo siguiente
   ...inputProps
 }) {
   // Borde verde mientras se escribe
@@ -373,6 +374,7 @@ function Field({
         />
 
         <TextInput
+          ref={inputRef}
           // Sin marco negro en web
           style={[styles.input, Platform.OS === 'web' && { outlineStyle: 'none' }]}
           value={value}
@@ -456,6 +458,12 @@ export default function SignUp({ navigation }) {
   // Medidor (3): al cambiar, el medidor se recalcula
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Tecla "Siguiente": pasa al campo de abajo sin tocar la pantalla
+  const lastNameRef = useRef(null);
+  const emailRef = useRef(null);
+  const passwordRef = useRef(null);
+  const confirmRef = useRef(null);
 
   const values = { firstName, lastName, email, password, confirmPassword };
 
@@ -982,6 +990,9 @@ export default function SignUp({ navigation }) {
                   autoCapitalize="words"
                   autoComplete="given-name"
                   textContentType="givenName"
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => lastNameRef.current?.focus()}
                 />
 
                 <Field
@@ -999,6 +1010,10 @@ export default function SignUp({ navigation }) {
                   autoCapitalize="words"
                   autoComplete="family-name"
                   textContentType="familyName"
+                  inputRef={lastNameRef}
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => emailRef.current?.focus()}
                 />
 
                 <Field
@@ -1018,6 +1033,10 @@ export default function SignUp({ navigation }) {
                   autoCorrect={false}
                   autoComplete="email"
                   textContentType="emailAddress"
+                  inputRef={emailRef}
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => passwordRef.current?.focus()}
                 />
 
                 <Field
@@ -1045,6 +1064,10 @@ export default function SignUp({ navigation }) {
                   autoCorrect={false}
                   autoComplete="new-password"
                   textContentType="newPassword"
+                  inputRef={passwordRef}
+                  returnKeyType="next"
+                  submitBehavior="submit"
+                  onSubmitEditing={() => confirmRef.current?.focus()}
                   right={
                     <TouchableOpacity
                       onPress={() => setShowPassword((prev) => !prev)}
@@ -1136,6 +1159,8 @@ export default function SignUp({ navigation }) {
                   autoCorrect={false}
                   autoComplete="new-password"
                   textContentType="newPassword"
+                  inputRef={confirmRef}
+                  returnKeyType="done" // tecla "Listo": registra
                   onSubmitEditing={handleSignUp} // Enter registra
                   right={
                     <TouchableOpacity
@@ -1167,6 +1192,7 @@ export default function SignUp({ navigation }) {
                     onPress={handleSignUp}
                     onLayout={(event) => setBtnW(event.nativeEvent.layout.width)}
                     disabled={loading}
+                    android_ripple={{ color: 'rgba(255,255,255,0.25)', foreground: true }} // onda al tocar (Android)
                   >
                     <Gradient id="btnGrad" from="#0B8A3E" to="#00B04F" />
 

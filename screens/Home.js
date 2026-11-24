@@ -5,7 +5,6 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
-  SafeAreaView,
   StatusBar,
   Image,
   Platform,
@@ -13,6 +12,8 @@ import {
   Easing,
   useWindowDimensions,
 } from 'react-native';
+// SafeAreaView de react-native está en desuso: se usa el de react-native-safe-area-context
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { FontAwesome } from '@expo/vector-icons';
 import { signOut } from 'firebase/auth';
 import { collection, doc, getDoc, onSnapshot } from 'firebase/firestore';
@@ -24,6 +25,9 @@ import Sidebar from '../src/components/Sidebar';
 // =========================================================================
 // CONSTANTES
 // =========================================================================
+
+// Bordes seguros solo en iPhone (igual que el SafeAreaView anterior)
+const SAFE_EDGES = Platform.OS === 'ios' ? ['top', 'right', 'bottom', 'left'] : [];
 
 const IMG_PRODUCTOS = require('../assets/productos.jpg');
 const IMG_LOCAL = require('../assets/local.jpg');
@@ -351,7 +355,7 @@ export default function Home({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: c.bg }]}>
+    <SafeAreaView edges={SAFE_EDGES} style={[styles.safeArea, { backgroundColor: c.bg }]}>
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
 
       <View style={styles.layout}>
