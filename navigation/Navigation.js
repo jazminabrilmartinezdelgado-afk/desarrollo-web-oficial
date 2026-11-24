@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View, Platform, Easing } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View, Platform, Easing, Animated } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
+import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { onAuthStateChanged } from 'firebase/auth'; //escuchador 
 import { auth, isFirebaseConfigured } from '../src/config/firebaseConfig';
 import { useTheme } from '../src/theme/ThemeContext';
@@ -17,6 +17,13 @@ import Perfil from '../screens/Perfil';
 
 const Stack = createStackNavigator();
 
+// Login y SignUp ya tienen su propia animación de entrada:
+// se cambian sin transición para que no se superpongan las dos animaciones
+const AUTH_OPTIONS = {
+  headerShown: false,
+  cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+};
+
 // ---------- TRANSICIÓN ENTRE PANTALLAS: fundido + leve deslizamiento ----------
 const SMOOTH = Easing.bezier(0.22, 1, 0.36, 1);
 const fadeSlide = ({ current }) => ({
@@ -27,9 +34,43 @@ const fadeSlide = ({ current }) => ({
     ],
   },
 });
+// ---------- PROVEEDORES: entra deslizándose desde la derecha ----------
+// ---------- y al volver sale deslizándose hacia la izquierda ----------
+const slideProveedores = ({ current, closing, layouts }) => {
+  // Se desliza el ancho de la columna (480 px), no el de toda la ventana:
+  // en la compu la ventana es muy ancha y el movimiento se veía brusco
+  const w = Math.min(layouts.screen.width, APP_MAX_WIDTH);
+  // Al entrar: de la derecha (w) a su lugar (0)
+  const enter = current.progress.interpolate({ inputRange: [0, 1], outputRange: [w, 0] });
+  // Al salir: de su lugar (0) hacia la izquierda (-w)
+  const exit = current.progress.interpolate({ inputRange: [0, 1], outputRange: [-w, 0] });
+  return {
+    cardStyle: {
+      // Un leve fundido acompaña el deslizamiento
+      opacity: current.progress.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1] }),
+      transform: [
+        {
+          // closing vale 0 al entrar y 1 al salir
+          translateX: Animated.add(
+            Animated.multiply(enter, Animated.subtract(1, closing)),
+            Animated.multiply(exit, closing)
+          ),
+        },
+      ],
+    },
+  };
+};
+
+// Tiempos del deslizamiento de Proveedores: un poco más largos y con curva suave
+const SLIDE_TRANSITION = {
+  open: { animation: 'timing', config: { duration: 550, easing: Easing.out(Easing.cubic) } },
+  close: { animation: 'timing', config: { duration: 500, easing: Easing.inOut(Easing.cubic) } },
+};
+
 const TRANSITION = {
   open: { animation: 'timing', config: { duration: 450, easing: SMOOTH } },
-  close: { animation: 'timing', config: { duration: 300, easing: SMOOTH } },
+  // Al volver: más largo y con curva pareja, para que no desaparezca de golpe
+  close: { animation: 'timing', config: { duration: 450, easing: Easing.inOut(Easing.cubic) } },
 };
 
 export default function Navigation() {
@@ -97,6 +138,11 @@ export default function Navigation() {
             headerStyle: { backgroundColor: '#1b4d3e' },
             headerTintColor: '#ffffff',
             headerTitleStyle: { fontWeight: 'bold' },
+            // En la web, React Navigation 7 trae las animaciones apagadas por defecto:
+            // se activan a mano para que también se animen al volver
+            animation: 'default',
+            // Mantiene visible la pantalla de atrás mientras la de adelante se desvanece
+            detachPreviousScreen: false,
             cardStyleInterpolator: fadeSlide,
             transitionSpec: TRANSITION,
             // CORREGIDO: el card del stack necesita altura explícita en web para que el scroll interno funcione
@@ -117,7 +163,7 @@ export default function Navigation() {
               <Stack.Screen
                 name="Proveedores"
                 component={Proveedores}
-                options={{ title: 'Proveedores', headerShown: false }}
+                options={{ title: 'Proveedores', headerShown: false, cardStyleInterpolator: slideProveedores, transitionSpec: SLIDE_TRANSITION }}
               />
               <Stack.Screen
                 name="Perfil"
@@ -128,8 +174,8 @@ export default function Navigation() {
           ) : (
             // Pantallas de acceso (sin sesión)
             <>
-              <Stack.Screen name="Login" component={Login} options={{ title: 'Iniciar sesión', headerShown: false }} />
-              <Stack.Screen name="SignUp" component={SignUp} options={{ title: 'Registro', headerShown: false }} />
+              <Stack.Screen name="Login" component={Login} options={{ title: 'Iniciar sesión', ...AUTH_OPTIONS }} />
+              <Stack.Screen name="SignUp" component={SignUp} options={{ title: 'Registro', ...AUTH_OPTIONS }} />
             </>
           )}
         </Stack.Navigator>

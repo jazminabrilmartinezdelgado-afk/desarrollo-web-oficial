@@ -52,6 +52,8 @@ const SALTA_PHONE_PREFIX = '+54 9 387 ';
 const SALTA_PHONE_REGEX = /^\+54\s9\s387\s\d{7}$/;
 const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9\s])\S{8,64}$/;
 
+const MIN_PASSWORD = 8;
+
 const PASSWORD_RULES = [
   { key: 'len', label: '8+ caracteres', test: (p) => p.length >= 8 },
   { key: 'upper', label: 'Mayúscula', test: (p) => /[A-Z]/.test(p) },
@@ -59,6 +61,48 @@ const PASSWORD_RULES = [
   { key: 'num', label: 'Número', test: (p) => /\d/.test(p) },
   { key: 'sym', label: 'Carácter especial', test: (p) => /[^A-Za-z0-9\s]/.test(p) },
 ];
+
+// Calcula qué tan segura es la contraseña (igual que en el registro)
+const getPasswordStrength = (password) => {
+  const passed = PASSWORD_RULES.filter((rule) => rule.test(password)).length;
+  let label = 'Muy débil';
+  let color = '#DC2626';
+  if (passed === 5) {
+    label = 'Fuerte';
+    color = '#16A34A';
+  } else if (passed === 4) {
+    label = 'Buena';
+    color = '#65A30D';
+  } else if (passed === 3) {
+    label = 'Media';
+    color = '#D97706';
+  } else if (passed > 0) {
+    label = 'Débil';
+  }
+  return { passed, label, color };
+};
+
+// Devuelve el error de un campo de contraseña ('' si está bien).
+// Mismos mensajes que en el registro, más los propios del cambio de contraseña.
+const getPwdError = (key, pwd) => {
+  switch (key) {
+    case 'actual':
+      if (!pwd.actual) return 'Ingrese su contraseña actual.';
+      return '';
+    case 'nueva':
+      if (!pwd.nueva) return 'La contraseña es obligatoria.';
+      if (!PASSWORD_REGEX.test(pwd.nueva)) return 'La contraseña no cumple todos los requisitos.';
+      if (pwd.actual && pwd.nueva === pwd.actual) return 'Debe ser distinta a la actual.';
+      return '';
+    case 'confirmar':
+      if (!pwd.confirmar) return 'Confirme su contraseña.';
+      if (!pwd.nueva) return 'Primero ingrese la contraseña.';
+      if (pwd.nueva !== pwd.confirmar) return 'Las contraseñas no coinciden.';
+      return '';
+    default:
+      return '';
+  }
+};
 
 // Devuelve los estilos del tema actual (se recalculan solo al cambiar de tema)
 const useStyles = () => {
@@ -95,9 +139,9 @@ const mapPasswordError = (code) => {
     case 'auth/invalid-credential':
       return 'La contraseña actual es incorrecta.';
     case 'auth/too-many-requests':
-      return 'Demasiados intentos. Espera unos minutos.';
+      return 'Demasiados intentos. Espere unos minutos.';
     case 'auth/network-request-failed':
-      return 'Error de conexión. Intenta nuevamente.';
+      return 'Error de conexión. Intente nuevamente.';
     case 'auth/weak-password':
       return 'La nueva contraseña es demasiado débil.';
     default:
@@ -125,7 +169,7 @@ function Gradient({ id, from, to }) {
 // =========================================================================
 // CAMPO DE TEXTO (mismo estilo que el formulario de Proveedores)
 // =========================================================================
-function Field({ label, icon, error, editable = true, right, ...props }) {
+function Field({ label, icon, error, editable = true, right, onBlur, ...props }) {
   const styles = useStyles();
   const { colors: c, isDark } = useTheme();
   const [focused, setFocused] = useState(false);
@@ -157,7 +201,10 @@ function Field({ label, icon, error, editable = true, right, ...props }) {
           placeholderTextColor="#9CA3AF"
           editable={editable}
           onFocus={() => setFocused(true)}
-          onBlur={() => setFocused(false)}
+          onBlur={(e) => {
+            setFocused(false);
+            onBlur && onBlur(e);
+          }}
           {...props}
         />
         {right}
@@ -244,7 +291,22 @@ export default function Perfil({ navigation }) {
   const [pwd, setPwd] = useState({ actual: '', nueva: '', confirmar: '' });
   const [pwdErrors, setPwdErrors] = useState({});
   const [pwdSaving, setPwdSaving] = useState(false);
-  const [showPwd, setShowPwd] = useState(false);
+  // Un ojito por campo, como en el registro
+  const [showActual, setShowActual] = useState(false);
+  const [showNueva, setShowNueva] = useState(false);
+  const [showConfirmar, setShowConfirmar] = useState(false);
+
+  // Barra de seguridad de la nueva contraseña
+  const strength = getPasswordStrength(pwd.nueva);
+  const strengthAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(strengthAnim, {
+      toValue: (strength.passed / PASSWORD_RULES.length) * 100,
+      duration: 420,
+      easing: Easing.bezier(0.22, 1, 0.36, 1),
+      useNativeDriver: false,
+    }).start();
+  }, [strength.passed]);
 
   // ---------- Toast ----------
   const [toast, setToast] = useState({ msg: '', type: 'ok' });
@@ -334,15 +396,15 @@ export default function Perfil({ navigation }) {
 
     if (!n) e.nombre = 'El nombre es obligatorio.';
     else if (n.length < 2) e.nombre = 'El nombre debe tener al menos 2 letras.';
-    else if (!NAME_REGEX.test(n)) e.nombre = 'Solo letras y espacios.';
+    else if (!NAME_REGEX.test(n)) e.nombre = 'El nombre solo puede contener letras y espacios.';
 
     if (!a) e.apellido = 'El apellido es obligatorio.';
     else if (a.length < 2) e.apellido = 'El apellido debe tener al menos 2 letras.';
-    else if (!NAME_REGEX.test(a)) e.apellido = 'Solo letras y espacios.';
+    else if (!NAME_REGEX.test(a)) e.apellido = 'El apellido solo puede contener letras y espacios.';
 
     // Teléfono opcional: si se completa, debe ser de Salta
     if (t && t !== SALTA_PHONE_PREFIX.trim() && !SALTA_PHONE_REGEX.test(t)) {
-      e.telefono = 'Debe ser un número de Salta (+54 9 387 XXXXXXX)';
+      e.telefono = 'Ingrese un número de Salta: +54 9 387 XXXXXXX.';
     }
     return e;
   };
@@ -386,7 +448,7 @@ export default function Perfil({ navigation }) {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        showToast('Necesitamos permiso para acceder a tus fotos', 'error');
+        showToast('Necesitamos permiso para acceder a sus fotos', 'error');
         return;
       }
       const res = await ImagePicker.launchImageLibraryAsync({
@@ -400,7 +462,7 @@ export default function Perfil({ navigation }) {
 
       const asset = res.assets[0];
       if (!asset.base64 || asset.base64.length > MAX_IMAGE_BASE64) {
-        showToast('La imagen es muy pesada. Elegí otra más liviana.', 'error');
+        showToast('La imagen es muy pesada. Elija otra más liviana.', 'error');
         return;
       }
       const foto = `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`;
@@ -422,18 +484,37 @@ export default function Perfil({ navigation }) {
 
   // ---------- CAMBIO DE CONTRASEÑA ----------
   const setPwdField = (key) => (value) => {
-    setPwd((p) => ({ ...p, [key]: value }));
-    if (pwdErrors[key]) setPwdErrors((e) => ({ ...e, [key]: undefined }));
+    const clean = value.replace(/\s/g, ''); // sin espacios, como en el registro
+    setPwd((p) => ({ ...p, [key]: clean }));
+    setPwdErrors((e) => ({
+      ...e,
+      [key]: undefined,
+      ...(key === 'nueva' ? { confirmar: undefined } : {}),
+    }));
+  };
+
+  // Valida un campo al salir de él (si quedó vacío, se avisa recién al tocar "Actualizar")
+  const validatePwdOnBlur = (key) => {
+    if (!pwd[key]) return;
+    const error = getPwdError(key, pwd);
+    setPwdErrors((e) => ({ ...e, [key]: error || undefined }));
+  };
+
+  const closePwd = () => {
+    setPwdOpen(false);
+    setPwd({ actual: '', nueva: '', confirmar: '' });
+    setPwdErrors({});
+    setShowActual(false);
+    setShowNueva(false);
+    setShowConfirmar(false);
   };
 
   const changePassword = async () => {
     const e = {};
-    if (!pwd.actual) e.actual = 'Ingrese su contraseña actual.';
-    if (!pwd.nueva) e.nueva = 'Ingrese la nueva contraseña.';
-    else if (!PASSWORD_REGEX.test(pwd.nueva)) e.nueva = 'No cumple los requisitos de seguridad.';
-    else if (pwd.nueva === pwd.actual) e.nueva = 'Debe ser distinta a la actual.';
-    if (!pwd.confirmar) e.confirmar = 'Confirme la nueva contraseña.';
-    else if (pwd.nueva !== pwd.confirmar) e.confirmar = 'Las contraseñas no coinciden.';
+    ['actual', 'nueva', 'confirmar'].forEach((key) => {
+      const error = getPwdError(key, pwd);
+      if (error) e[key] = error;
+    });
     setPwdErrors(e);
     if (Object.keys(e).length) return;
 
@@ -443,8 +524,7 @@ export default function Perfil({ navigation }) {
       const credential = EmailAuthProvider.credential(user.email, pwd.actual);
       await reauthenticateWithCredential(user, credential);
       await updatePassword(user, pwd.nueva);
-      setPwd({ actual: '', nueva: '', confirmar: '' });
-      setPwdOpen(false);
+      closePwd();
       showToast('Contraseña actualizada correctamente');
     } catch (err) {
       console.error('Error al cambiar la contraseña:', err);
@@ -473,7 +553,7 @@ export default function Perfil({ navigation }) {
   const resendVerification = async () => {
     try {
       await sendEmailVerification(user);
-      showToast('Te enviamos un nuevo enlace de verificación');
+      showToast('Le enviamos un nuevo enlace de verificación');
     } catch (err) {
       showToast('No se pudo enviar el enlace', 'error');
     }
@@ -576,6 +656,7 @@ export default function Perfil({ navigation }) {
                   onChangeText={setField('nombre')}
                   error={errors.nombre}
                   maxLength={40}
+                  autoCapitalize="words"
                 />
                 <Field
                   label="Apellido"
@@ -584,6 +665,7 @@ export default function Perfil({ navigation }) {
                   onChangeText={setField('apellido')}
                   error={errors.apellido}
                   maxLength={40}
+                  autoCapitalize="words"
                 />
                 <Field
                   label="Teléfono (opcional)"
@@ -648,48 +730,99 @@ export default function Perfil({ navigation }) {
                   icon="lock"
                   value={pwd.actual}
                   onChangeText={setPwdField('actual')}
+                  onBlur={() => validatePwdOnBlur('actual')}
                   error={pwdErrors.actual}
-                  secureTextEntry={!showPwd}
+                  secureTextEntry={!showActual}
                   autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="current-password"
                   right={
-                    <TouchableOpacity onPress={() => setShowPwd((s) => !s)} hitSlop={10}>
-                      <FontAwesome name={showPwd ? 'eye-slash' : 'eye'} size={16} color="#9CA3AF" />
+                    <TouchableOpacity onPress={() => setShowActual((s) => !s)} hitSlop={10}>
+                      <FontAwesome name={showActual ? 'eye-slash' : 'eye'} size={16} color="#9CA3AF" />
                     </TouchableOpacity>
                   }
                 />
                 <Field
                   label="Nueva contraseña"
-                  icon="key"
+                  icon="lock"
+                  placeholder="Cree una contraseña segura"
                   value={pwd.nueva}
                   onChangeText={setPwdField('nueva')}
+                  onBlur={() => {
+                    validatePwdOnBlur('nueva');
+                    validatePwdOnBlur('confirmar');
+                  }}
                   error={pwdErrors.nueva}
-                  secureTextEntry={!showPwd}
+                  secureTextEntry={!showNueva}
                   autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="new-password"
                   maxLength={64}
+                  right={
+                    <TouchableOpacity onPress={() => setShowNueva((s) => !s)} hitSlop={10}>
+                      <FontAwesome name={showNueva ? 'eye-slash' : 'eye'} size={16} color="#9CA3AF" />
+                    </TouchableOpacity>
+                  }
                 />
 
-                {/* Requisitos de la contraseña en vivo */}
-                <View style={styles.rules}>
-                  {PASSWORD_RULES.map((r) => {
-                    const ok = r.test(pwd.nueva);
-                    return (
-                      <View key={r.key} style={[styles.rule, ok && styles.ruleOk]}>
-                        <FontAwesome name={ok ? 'check' : 'circle-o'} size={10} color={ok ? c.greenMain : '#9CA3AF'} />
-                        <Text style={[styles.ruleText, ok && { color: c.greenMain }]}>{r.label}</Text>
-                      </View>
-                    );
-                  })}
-                </View>
+                {/* Requisitos: texto cuando está vacía; al escribir, barra y pastillas (igual que en el registro) */}
+                {!pwd.nueva && !pwdErrors.nueva && (
+                  <Text style={styles.hintText}>
+                    Mínimo {MIN_PASSWORD} caracteres, una mayúscula, una minúscula, un número y un carácter
+                    especial. Sin espacios.
+                  </Text>
+                )}
+
+                {pwd.nueva.length > 0 && (
+                  <View style={styles.strengthBox}>
+                    <View style={styles.strengthHeader}>
+                      <Text style={styles.strengthText}>Seguridad de la contraseña:</Text>
+                      <Text style={[styles.strengthLabel, { color: strength.color }]}>{strength.label}</Text>
+                    </View>
+                    <View style={styles.strengthBarBackground}>
+                      <Animated.View
+                        style={[
+                          styles.strengthBarFill,
+                          {
+                            width: strengthAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }),
+                            backgroundColor: strength.color,
+                          },
+                        ]}
+                      />
+                    </View>
+                    <View style={styles.rules}>
+                      {PASSWORD_RULES.map((r) => {
+                        const ok = r.test(pwd.nueva);
+                        return (
+                          <View key={r.key} style={[styles.rule, ok && styles.ruleOk]}>
+                            <FontAwesome name={ok ? 'check-circle' : 'circle-o'} size={11} color={ok ? c.greenMain : '#9CA3AF'} />
+                            <Text style={[styles.ruleText, ok && { color: c.greenMain }]}>{r.label}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
 
                 <Field
                   label="Confirmar nueva contraseña"
-                  icon="key"
+                  icon="lock"
+                  placeholder="Repita su contraseña"
                   value={pwd.confirmar}
                   onChangeText={setPwdField('confirmar')}
+                  onBlur={() => validatePwdOnBlur('confirmar')}
                   error={pwdErrors.confirmar}
-                  secureTextEntry={!showPwd}
+                  secureTextEntry={!showConfirmar}
                   autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="new-password"
                   maxLength={64}
+                  onSubmitEditing={changePassword}
+                  right={
+                    <TouchableOpacity onPress={() => setShowConfirmar((s) => !s)} hitSlop={10}>
+                      <FontAwesome name={showConfirmar ? 'eye-slash' : 'eye'} size={16} color="#9CA3AF" />
+                    </TouchableOpacity>
+                  }
                 />
 
                 <View style={styles.row}>
@@ -697,11 +830,7 @@ export default function Perfil({ navigation }) {
                     <PrimaryButton
                       title="Cancelar"
                       variant="outline"
-                      onPress={() => {
-                        setPwdOpen(false);
-                        setPwd({ actual: '', nueva: '', confirmar: '' });
-                        setPwdErrors({});
-                      }}
+                      onPress={closePwd}
                     />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -933,15 +1062,31 @@ const makeStyles = (c) => StyleSheet.create({
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
   errorText: { color: '#DC2626', fontSize: 11 },
 
-  rules: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: -6, marginBottom: 14 },
+  hintText: { color: c.textMuted, fontSize: 11, lineHeight: 16, marginTop: -8, marginBottom: 14 },
+  strengthBox: {
+    width: '100%',
+    marginTop: -6,
+    marginBottom: 14,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: c.surfaceAlt,
+    borderWidth: 1,
+    borderColor: c.border,
+  },
+  strengthHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  strengthText: { fontSize: 12, color: c.textMuted, flex: 1 },
+  strengthLabel: { fontSize: 12, fontWeight: 'bold', marginLeft: 8 },
+  strengthBarBackground: { height: 6, backgroundColor: c.border, borderRadius: 3, overflow: 'hidden' },
+  strengthBarFill: { height: '100%', borderRadius: 3 },
+  rules: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
   rule: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: c.surfaceAlt,
+    gap: 5,
+    backgroundColor: c.surface,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 8,
+    borderRadius: 20,
   },
   ruleOk: { backgroundColor: c.accentSoft },
   ruleText: { fontSize: 11, color: c.textMuted },

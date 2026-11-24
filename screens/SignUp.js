@@ -182,6 +182,8 @@ const getFieldError = (field, values) => {
 
     case 'confirmPassword':
       if (!values.confirmPassword) return 'Confirme su contraseña.';
+      // Si todavía no escribió la contraseña, no tiene sentido compararlas
+      if (!values.password) return 'Primero ingrese la contraseña.';
       if (values.password !== values.confirmPassword) {
         return 'Las contraseñas no coinciden.';
       }
@@ -824,12 +826,12 @@ export default function SignUp({ navigation }) {
           break;
 
         case 'auth/network-request-failed':
-          errorMessage = 'Error de conexión. Por favor, intenta más tarde.';
+          errorMessage = 'Error de conexión. Por favor, intente más tarde.';
           break;
 
         case 'auth/too-many-requests':
           errorMessage =
-            'Demasiados intentos. Espera unos minutos e inténtalo de nuevo.';
+            'Demasiados intentos. Espere unos minutos e inténtelo de nuevo.';
           break;
 
         case 'auth/operation-not-allowed':
@@ -838,7 +840,7 @@ export default function SignUp({ navigation }) {
 
         case 'auth/invalid-api-key':
           errorMessage =
-            'La clave API de Firebase no es válida. Revisa su configuración.';
+            'La clave API de Firebase no es válida. Revise su configuración.';
           break;
 
         default:
@@ -999,7 +1001,7 @@ export default function SignUp({ navigation }) {
                   Crear cuenta
                 </Text>
 
-                <Text style={styles.subtitle}>Registrate en Agroquímica del Valle</Text>
+                <Text style={styles.subtitle}>Regístrese en Agroquímica del Valle</Text>
 
                 {/* Línea verde/amarilla que se "abre" desde el centro */}
                 <Animated.View
@@ -1099,10 +1101,9 @@ export default function SignUp({ navigation }) {
                     setPassword(cleanPassword);
                     clearError('password');
 
-                    // Si ahora coincide con la confirmación, quitamos ese error
-                    if (confirmPassword && cleanPassword === confirmPassword) {
-                      clearError('confirmPassword');
-                    }
+                    // Mientras escribe la contraseña se borra el error de la confirmación;
+                    // al salir del campo se vuelve a comparar (ver onBlur)
+                    clearError('confirmPassword');
                   }}
                   onBlur={() => {
                     validateOnBlur('password');
@@ -1288,8 +1289,8 @@ export default function SignUp({ navigation }) {
                   style={styles.loginRow}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.loginTextPlain}>¿Ya tenés cuenta? </Text>
-                  <Text style={styles.loginLinkBold}>Iniciá sesión.</Text>
+                  <Text style={styles.loginTextPlain}>¿Ya tiene una cuenta?</Text>
+                  <Text style={styles.loginLinkBold}>Inicie sesión.</Text>
                 </TouchableOpacity>
               </Animated.View>
             </View>
@@ -1348,13 +1349,13 @@ export default function SignUp({ navigation }) {
               <FontAwesome name="envelope" size={30} color="#FFFFFF" />
             </View>
 
-            <Text style={styles.modalTitle}>¡Revisá tu correo!</Text>
+            <Text style={styles.modalTitle}>¡Revise su correo!</Text>
 
             <Text style={styles.modalSubtitle}>
-              Te enviamos un enlace de verificación a{'\n'}
+              Le enviamos un enlace de verificación a{'\n'}
               <Text style={{ fontWeight: 'bold' }}>{sentTo}</Text>
-              {'\n\n'}Abrilo para activar tu cuenta y después iniciá sesión.
-              Si no lo ves, revisá la carpeta de spam.
+              {'\n\n'}Ábralo para activar su cuenta y luego inicie sesión.
+              Si no lo encuentra, revise la carpeta de spam.
             </Text>
 
             <TouchableOpacity

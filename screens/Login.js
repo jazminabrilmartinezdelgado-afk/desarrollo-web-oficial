@@ -301,7 +301,7 @@ function ForgotModal({ initialEmail, onClose }) {
     setLoading(true);
     try {
       await sendPasswordResetEmail(auth, forgotEmail.trim());
-      setMsg({ type: 'ok', text: 'Listo. Te enviamos un correo para restablecer la contraseña.' });
+      setMsg({ type: 'ok', text: 'Le enviamos un correo para restablecer su contraseña.' });
     } catch (error) {
       setMsg({
         type: 'error',
@@ -334,7 +334,7 @@ function ForgotModal({ initialEmail, onClose }) {
           </View>
           <Text style={styles.modalTitle}>Recuperar contraseña</Text>
           <Text style={styles.modalSubtitle}>
-            Ingresá tu correo registrado y te enviaremos las instrucciones.
+            Ingrese su correo registrado y le enviaremos las instrucciones.
           </Text>
 
           {msg && (
@@ -574,7 +574,7 @@ export default function Login({ navigation }) {
           // Puede fallar por límite de envíos; no es crítico
         }
         await signOut(auth);
-        showError('Tu correo aún no está verificado. Te enviamos un nuevo enlace: revisá tu bandeja de entrada o spam.');
+        showError('Su correo aún no está verificado. Le enviamos un nuevo enlace: revise su bandeja de entrada o spam.');
         setLoading(false);
         return;
       }
@@ -687,7 +687,7 @@ export default function Login({ navigation }) {
 
               <Animated.View style={[{ alignItems: 'center' }, fadeUp(titleAnim)]}>
                 <Text style={[styles.mainTitle, compact && { fontSize: 26 }]}>Iniciar sesión</Text>
-                <Text style={styles.subtitle}>Accedé a tu cuenta para continuar</Text>
+                <Text style={styles.subtitle}>Acceda a su cuenta para continuar</Text>
                 <Animated.View
                   style={[
                     styles.dividerContainer,
@@ -713,7 +713,7 @@ export default function Login({ navigation }) {
                   <Text style={styles.label}>Correo electrónico</Text>
                   <Input
                     icon="envelope-o"
-                    placeholder="ejemplo@correo.com / ejemplo@hotmail.com"
+                    placeholder="ejemplo@correo.com o ejemplo@hotmail.com"
                     value={email}
                     onChangeText={(t) => {
                       setEmail(t);
@@ -722,6 +722,7 @@ export default function Login({ navigation }) {
                     keyboardType="email-address"
                     autoCapitalize="none"
                     autoCorrect={false}
+                    autoComplete="email"
                   />
                 </Animated.View>
 
@@ -737,6 +738,7 @@ export default function Login({ navigation }) {
                     }}
                     secureTextEntry={!showPassword}
                     autoCapitalize="none"
+                    autoComplete="current-password"
                     onSubmitEditing={handleLogin}
                     right={
                       <TouchableOpacity
@@ -760,7 +762,7 @@ export default function Login({ navigation }) {
                   </TouchableOpacity>
 
                   <TouchableOpacity onPress={() => setForgotVisible(true)}>
-                    <Text style={styles.forgotText}>¿Olvidaste tu contraseña?</Text>
+                    <Text style={styles.forgotText}>¿Olvidó su contraseña?</Text>
                   </TouchableOpacity>
                 </Animated.View>
 
@@ -822,8 +824,8 @@ export default function Login({ navigation }) {
                   style={styles.signUpRow}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.signUpTextPlain}>¿No tenés cuenta? </Text>
-                  <Text style={styles.signUpLinkBold}>Registrate.</Text>
+                  <Text style={styles.signUpTextPlain}>¿No tiene una cuenta?</Text>
+                  <Text style={styles.signUpLinkBold}>Regístrese.</Text>
                 </TouchableOpacity>
               </Animated.View>
             </View>

@@ -74,6 +74,46 @@ const SALTA_PHONE_REGEX = /^\+54\s9\s387\s\d{7}$/;
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@(gmail\.com|hotmail\.com)$/i;
 const ONLY_LETTERS_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]+$/;
 
+// Mismas reglas que en el registro (SignUp)
+const NAME_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+(?:\s[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+)*$/;
+const PHONE_PREFIX = '+54 9 387 ';
+
+// Devuelve el error de UN campo del formulario ('' si está bien).
+// Los mensajes son los mismos que en la pantalla de registro.
+const getFieldError = (key, form) => {
+  switch (key) {
+    case 'nombre':
+    case 'apellido': {
+      const campo = key; // "nombre" o "apellido"
+      const v = form[key].trim();
+      if (!v) return `El ${campo} es obligatorio.`;
+      if (v.length < 2) return `El ${campo} debe tener al menos 2 letras.`;
+      if (!NAME_REGEX.test(v)) return `El ${campo} solo puede contener letras y espacios.`;
+      return '';
+    }
+    case 'telefono':
+      if (!form.telefono.replace(PHONE_PREFIX, '').trim()) return 'El teléfono es obligatorio.';
+      if (!SALTA_PHONE_REGEX.test(form.telefono)) return 'Ingrese un número de Salta: +54 9 387 XXXXXXX.';
+      return '';
+    case 'email': {
+      const email = form.email.trim();
+      if (!email) return 'El correo es obligatorio.';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return 'El formato del correo no es válido. Ejemplo: nombre@gmail.com o nombre@hotmail.com';
+      }
+      if (!EMAIL_REGEX.test(email)) return 'Use un correo @gmail.com o @hotmail.com.';
+      return '';
+    }
+    case 'direccion':
+      if (!form.direccion.trim()) return 'La dirección es obligatoria.';
+      return '';
+    default:
+      return '';
+  }
+};
+
+const FORM_FIELDS = ['nombre', 'apellido', 'telefono', 'email', 'direccion'];
+
 // Devuelve los estilos del tema actual (se recalculan solo al cambiar de tema)
 const useStyles = () => {
   const { colors } = useTheme();
@@ -314,14 +354,6 @@ function ProveedorCard({ item, index, onEdit, onToggle }) {
               {fullName || 'Proveedor sin nombre'}
             </Text>
 
-            {!!item.email && (
-              <View style={styles.infoRow}>
-                <FontAwesome name="envelope-o" size={12} color={c.textMuted} style={styles.infoIcon} />
-                <Text style={styles.infoText} numberOfLines={1}>
-                  {item.email}
-                </Text>
-              </View>
-            )}
             <View style={styles.infoRow}>
               <FontAwesome name="phone" size={14} color={c.textMuted} style={styles.infoIcon} />
               <Text style={styles.infoText}>{item.telefono || 'Sin teléfono'}</Text>
@@ -372,14 +404,8 @@ function ProveedorCard({ item, index, onEdit, onToggle }) {
               <Text style={styles.detailValue}>{item.direccion || 'Sin dirección'}</Text>
             </View>
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Nombre completo</Text>
-              <Text style={styles.detailValue}>{fullName || '-'}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Estado</Text>
-              <Text style={[styles.detailValue, { color: activo ? (c.mode === 'dark' ? '#86EFAC' : '#166534') : c.textMuted }]}>
-                {activo ? 'Activo' : 'Inactivo'}
-              </Text>
+              <Text style={styles.detailLabel}>Correo electrónico</Text>
+              <Text style={styles.detailValue}>{item.email || 'Sin correo'}</Text>
             </View>
           </Animated.View>
         )}
@@ -483,7 +509,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!perm.granted) {
-        setBanner('Necesitamos permiso para acceder a tus fotos.');
+        setBanner('Necesitamos permiso para acceder a sus fotos.');
         runShake();
         return;
       }
@@ -499,7 +525,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
 
       const asset = res.assets[0];
       if (!asset.base64 || asset.base64.length > MAX_IMAGE_BASE64) {
-        setBanner('La imagen es muy pesada. Elegí otra más liviana.');
+        setBanner('La imagen es muy pesada. Elija otra más liviana.');
         runShake();
         return;
       }
@@ -545,83 +571,22 @@ function FormModal({ proveedor, onClose, onSaved }) {
   // Se ejecuta cuando el usuario termina de escribir y sale del campo.
   // =========================================================================
   const validateField = (key) => {
-    let error;
+    // Igual que en el registro: si el campo quedó vacío no se marca todavía;
+    // el "obligatorio" aparece recién al tocar el botón de guardar
+    const value = key === 'telefono' ? form.telefono.replace(PHONE_PREFIX, '') : form[key];
+    if (!String(value).trim()) return;
 
-    // Valida solamente el campo que perdió el foco.
-    switch (key) {
-      case 'nombre':
-        if (!form.nombre.trim()) {
-          error = 'El nombre es obligatorio';
-        } else if (!ONLY_LETTERS_REGEX.test(form.nombre)) {
-          error = 'No se permiten números ni símbolos';
-        }
-        break;
-
-      case 'apellido':
-        if (!form.apellido.trim()) {
-          error = 'El apellido es obligatorio';
-        } else if (!ONLY_LETTERS_REGEX.test(form.apellido)) {
-          error = 'No se permiten números ni símbolos';
-        }
-        break;
-
-      case 'telefono':
-        if (!form.telefono.replace('+54 9 387 ', '').trim()) {
-          error = 'El teléfono es obligatorio';
-        } else if (!SALTA_PHONE_REGEX.test(form.telefono)) {
-          error = 'Debe ser un número válido de Salta (+54 9 387 XXXXXXX)';
-        }
-        break;
-
-      case 'email':
-        if (!form.email.trim()) {
-          error = 'El email es obligatorio';
-        } else if (!EMAIL_REGEX.test(form.email.trim())) {
-          error = 'Debe ser un correo válido con @gmail.com o @hotmail.com';
-        }
-        break;
-
-      case 'direccion':
-        if (!form.direccion.trim()) {
-          error = 'La dirección es obligatoria';
-        }
-        break;
-
-      default:
-        break;
-    }
-
-    // Actualiza únicamente el error del campo que se está validando.
-    setErrors((prev) => ({
-      ...prev,
-      [key]: error,
-    }));
+    const error = getFieldError(key, form);
+    setErrors((prev) => ({ ...prev, [key]: error || undefined }));
   };
 
+  // Valida todos los campos juntos (al tocar el botón de guardar)
   const validate = () => {
     const e = {};
-    if (!form.nombre.trim()) e.nombre = 'El nombre es obligatorio';
-    else if (!ONLY_LETTERS_REGEX.test(form.nombre)) e.nombre = 'No se permiten números ni símbolos';
-
-    if (!form.apellido.trim()) e.apellido = 'El apellido es obligatorio';
-    else if (!ONLY_LETTERS_REGEX.test(form.apellido)) e.apellido = 'No se permiten números ni símbolos';
-
-    if (!form.telefono.replace('+54 9 387 ', '').trim()) {
-      e.telefono = 'El teléfono es obligatorio';
-    } else if (!SALTA_PHONE_REGEX.test(form.telefono)) {
-      e.telefono = 'Debe ser un número válido de Salta (+54 9 387 XXXXXXX)';
-    }
-
-    if (!form.email.trim()) {
-      e.email = 'El email es obligatorio';
-    } else if (!EMAIL_REGEX.test(form.email.trim())) {
-      e.email = 'Debe ser un correo válido con @gmail.com o @hotmail.com';
-    }
-
-    if (!form.direccion.trim()) {
-      e.direccion = 'La dirección es obligatoria';
-    }
-
+    FORM_FIELDS.forEach((key) => {
+      const error = getFieldError(key, form);
+      if (error) e[key] = error;
+    });
     return e;
   };
 
@@ -661,7 +626,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
       close();
     } catch (err) {
       console.error('Error al guardar proveedor:', err);
-      setBanner('No se pudo guardar. Intenta nuevamente.');
+      setBanner('No se pudo guardar. Intente nuevamente.');
       runShake();
     } finally {
       setSaving(false);
@@ -719,7 +684,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
                   {editing ? 'Actualizar proveedor' : 'Nuevo proveedor'}
                 </Text>
                 <Text style={styles.sheetSubtitle}>
-                  {editing ? 'Modificá los datos y guardá' : 'Completá los campos obligatorios'}
+                  {editing ? 'Modifique los datos y guarde los cambios' : 'Complete los campos obligatorios'}
                 </Text>
               </View>
               <TouchableOpacity onPress={close} style={styles.closeBtn}>
@@ -776,22 +741,26 @@ function FormModal({ proveedor, onClose, onSaved }) {
                 <Field
                   label="Nombre"
                   icon="user"
-                  placeholder="Juan"
+                  placeholder="Ingrese su nombre"
                   value={form.nombre}
                   onChangeText={set('nombre')}
                   onBlur={() => validateField('nombre')}
                   error={errors.nombre}
+                  maxLength={50}
+                  autoCapitalize="words"
                 />
               </View>
               <View style={{ flex: 1 }}>
                 <Field
                   label="Apellido"
                   icon="user-o"
-                  placeholder="Pérez"
+                  placeholder="Ingrese su apellido"
                   value={form.apellido}
                   onChangeText={set('apellido')}
                   onBlur={() => validateField('apellido')}
                   error={errors.apellido}
+                  maxLength={50}
+                  autoCapitalize="words"
                 />
               </View>
             </Animated.View>
@@ -812,11 +781,13 @@ function FormModal({ proveedor, onClose, onSaved }) {
             </Animated.View>
             <Animated.View style={fadeUpItem(items[4])}>
               <Field
-                label="Email"
+                label="Correo electrónico"
                 icon="envelope"
-                placeholder="ejemplo@gmail.com / ejemplo@hotmail.com"
+                placeholder="ejemplo@gmail.com o ejemplo@hotmail.com"
                 keyboardType="email-address"
                 autoCapitalize="none"
+                autoCorrect={false}
+                maxLength={100}
                 value={form.email}
                 onChangeText={set('email')}
                 onBlur={() => validateField('email')}
@@ -825,7 +796,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
               <Field
                 label="Dirección"
                 icon="map-marker"
-                placeholder="Calle, número, localidad"
+                placeholder="Ingrese su dirección"
                 value={form.direccion}
                 onChangeText={set('direccion')}
                 onBlur={() => validateField('direccion')}
@@ -964,7 +935,7 @@ function ConfirmModal({ proveedor, onCancel, onConfirm, loading }) {
           </View>
           <Text style={styles.confirmTitle}>¿Dar de baja al proveedor?</Text>
           <Text style={styles.confirmText}>
-            <Text style={{ fontWeight: 'bold', color: c.text }}>{fullName}</Text> quedará como inactivo. Podrás reactivarlo cuando quieras.
+            <Text style={{ fontWeight: 'bold', color: c.text }}>{fullName}</Text> quedará como inactivo. Podrá reactivarlo cuando lo desee.
           </Text>
 
           <View style={styles.confirmRow}>
@@ -1201,8 +1172,8 @@ export default function Proveedores({ navigation }) {
       </Text>
       <Text style={styles.emptyText}>
         {search || filtro !== 'todos'
-          ? 'Prueba con otro término o cambia el filtro.'
-          : 'Toca el botón + para registrar el primero.'}
+          ? 'Pruebe con otro término o cambie el filtro.'
+          : 'Toque el botón + para registrar el primero.'}
       </Text>
     </View>
   );
@@ -1321,7 +1292,7 @@ export default function Proveedores({ navigation }) {
               </View>
               <Text style={styles.bannerTitle}>Proveedores</Text>
               <Text style={styles.bannerSub}>
-                Mantené actualizada la información de tus aliados estratégicos.
+                Mantenga actualizada la información de sus aliados estratégicos.
               </Text>
             </View>
 
@@ -1346,7 +1317,7 @@ export default function Proveedores({ navigation }) {
               <FontAwesome name="search" size={14} color="#9CA3AF" />
               <TextInput
                 style={[styles.searchInput, Platform.OS === 'web' && { outlineStyle: 'none' }]}
-                placeholder="Buscar por nombre, email o dirección..."
+                placeholder="Buscar por nombre, correo o dirección..."
                 placeholderTextColor="#9CA3AF"
                 value={search}
                 onChangeText={setSearch}

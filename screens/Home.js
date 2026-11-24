@@ -188,6 +188,8 @@ export default function Home({ navigation }) {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [profile, setProfile] = useState({ name: '', email: '', foto: '' });
+  // El saludo se muestra recién cuando ya se sabe el nombre (así no aparece "Usuario" un instante)
+  const helloAnim = useRef(new Animated.Value(0)).current;
   const [stats, setStats] = useState({ activos: null, total: null });
 
   // Control de aparición por scroll
@@ -210,16 +212,29 @@ export default function Home({ navigation }) {
     const load = async () => {
       const user = auth.currentUser;
       if (!user) return;
-      const raw = user.displayName || (user.email ? user.email.split('@')[0] : '');
-      const name = raw ? raw.charAt(0).toUpperCase() + raw.slice(1) : '';
       let foto = '';
+      let fullName = '';
       try {
         const snap = await getDoc(doc(db, 'usuarios', user.uid));
-        if (snap.exists()) foto = snap.data().foto || '';
+        if (snap.exists()) {
+          const data = snap.data();
+          foto = data.foto || '';
+          // Nombre y apellido guardados desde "Mi perfil"
+          fullName = `${data.nombre || ''} ${data.apellido || ''}`.trim();
+        }
       } catch (e) {
-        // Sin permiso o sin conexión: se muestran las iniciales
+        // Sin permiso o sin conexión: se usa el nombre de la cuenta
       }
+      // Si no hay datos en Firestore, se usa el nombre de la cuenta (registro)
+      if (!fullName) fullName = (user.displayName || '').trim();
+      const name = fullName ? fullName.charAt(0).toUpperCase() + fullName.slice(1) : '';
       setProfile({ name, email: user.email || '', foto });
+      Animated.timing(helloAnim, {
+        toValue: 1,
+        duration: 350,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start();
     };
     load();
     return navigation.addListener('focus', load);
@@ -462,9 +477,9 @@ export default function Home({ navigation }) {
                   <Text style={styles.pillText}>EXCELENCIA AGRÍCOLA</Text>
                 </View>
 
-                <View style={styles.helloRow}>
+                <Animated.View style={[styles.helloRow, { opacity: helloAnim }]}>
                   <Text style={[styles.helloText, wide && { fontSize: 42 }]}>
-                    Hola, {profile.name ? profile.name.split(' ')[0] : 'Usuario'}
+                    {`Hola, ${profile.name ? profile.name.split(' ')[0] : 'Usuario'}`}
                   </Text>
                   <Animated.Text
                     style={[
@@ -478,17 +493,20 @@ export default function Home({ navigation }) {
                   >
                     👋
                   </Animated.Text>
-                </View>
+                </Animated.View>
 
                 <Text style={[styles.heroTitle, wide && { fontSize: 22 }]}>
                   Insumos de vanguardia para{'\n'}cada etapa del cultivo
                 </Text>
                 <Text style={styles.heroText}>
-                  Bienvenido a Agroquímica Del Valle. Gestioná proveedores e insumos desde un solo lugar.
+                  Bienvenido a Agroquímica Del Valle. Gestione proveedores e insumos desde un solo lugar.
                 </Text>
 
                 <View style={styles.ctaRow}>
-                  <Pressable style={styles.ctaMain} onPress={() => goTo('Proveedores')}>
+                  <Pressable
+                    style={({ pressed }) => [styles.ctaMain, pressed && { opacity: 0.7 }]}
+                    onPress={() => goTo('Proveedores')}
+                  >
                     <Text style={styles.ctaMainText}>Ver proveedores</Text>
                     <Animated.View
                       style={{
@@ -498,7 +516,10 @@ export default function Home({ navigation }) {
                       <FontAwesome name="arrow-right" size={13} color="#0d3827" />
                     </Animated.View>
                   </Pressable>
-                  <Pressable style={styles.ctaGhost} onPress={() => goTo('Perfil')}>
+                  <Pressable
+                    style={({ pressed }) => [styles.ctaGhost, pressed && { opacity: 0.6 }]}
+                    onPress={() => goTo('Perfil')}
+                  >
                     <FontAwesome name="user-circle" size={14} color="#FFFFFF" />
                     <Text style={styles.ctaGhostText}>Mi perfil</Text>
                   </Pressable>
@@ -535,7 +556,7 @@ export default function Home({ navigation }) {
 
               {/* Nuestro local + misión */}
               <Reveal limit={limit} style={styles.sectionHead}>
-                <Text style={[styles.kicker, { color: c.greenMain }]}>CONOCENOS</Text>
+                <Text style={[styles.kicker, { color: c.greenMain }]}>CONÓZCANOS</Text>
                 <Text style={[styles.sectionTitle, { color: c.text }]}>Cerca de quienes producen</Text>
               </Reveal>
 
