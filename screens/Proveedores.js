@@ -77,6 +77,8 @@ const EMPTY_FORM = {
 const SALTA_PHONE_REGEX = /^\+54\s9\s387\s\d{7}$/;
 const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@(gmail\.com|hotmail\.com)$/i;
 const ONLY_LETTERS_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]+$/;
+// Dirección: letras, números, espacios y . , # ° º / -
+const ADDRESS_BLOCKED = /[^A-Za-zÁÉÍÓÚáéíóúÑñÜü0-9\s.,#°º\/-]/g;
 
 // Mismas reglas que en el registro (SignUp)
 const NAME_REGEX = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+(?:\s[A-Za-zÁÉÍÓÚáéíóúÑñÜü]+)*$/;
@@ -108,9 +110,13 @@ const getFieldError = (key, form) => {
       if (!EMAIL_REGEX.test(email)) return 'Use un correo @gmail.com o @hotmail.com.';
       return '';
     }
-    case 'direccion':
-      if (!form.direccion.trim()) return 'La dirección es obligatoria.';
+    case 'direccion': {
+      const d = form.direccion.trim();
+      if (!d) return 'La dirección es obligatoria.';
+      if (d.length < 5) return 'La dirección debe tener al menos 5 caracteres.';
+      if (!/[A-Za-zÁÉÍÓÚáéíóúÑñ]/.test(d)) return 'Incluya el nombre de la calle.';
       return '';
+    }
     default:
       return '';
   }
@@ -586,6 +592,8 @@ function FormModal({ proveedor, onClose, onSaved }) {
     if (key === 'nombre' || key === 'apellido') {
       if (value !== '' && !ONLY_LETTERS_REGEX.test(value)) return;
     }
+    // La dirección no acepta símbolos raros: se borran al escribir
+    if (key === 'direccion') value = value.replace(ADDRESS_BLOCKED, '');
     setForm((f) => ({ ...f, [key]: value }));
     if (errors[key]) setErrors((e) => ({ ...e, [key]: undefined }));
     if (banner) setBanner('');
@@ -839,6 +847,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
                 placeholder="Ingrese su dirección"
                 value={form.direccion}
                 onChangeText={set('direccion')}
+                maxLength={100}
                 onBlur={() => validateField('direccion')}
                 error={errors.direccion}
                 inputRef={direccionRef}
