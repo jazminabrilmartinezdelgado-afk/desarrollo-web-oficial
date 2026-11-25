@@ -47,6 +47,7 @@ const DARK = '#111827';
 const PAGE_BG = '#F3F7F4';
 
 // Colección de Firestore donde se guardan los datos extra del usuario
+// [S5-01] Colección "usuarios": un documento por persona con los datos de su perfil.
 const COLLECTION = 'usuarios';
 
 // Firestore permite 1 MB por documento: limitamos la foto en base64
@@ -292,6 +293,7 @@ function PrimaryButton({ title, icon, onPress, loading, variant = 'primary' }) {
 // =========================================================================
 // PANTALLA MI PERFIL
 // =========================================================================
+// [S5-02] Pantalla Mi Perfil.
 export default function Perfil({ navigation }) {
   const styles = useStyles();
   const { colors: c, isDark, toggleTheme } = useTheme();
@@ -439,6 +441,7 @@ export default function Perfil({ navigation }) {
   };
 
   // ---------- ACTUALIZACIÓN: Auth (displayName) + Firestore ----------
+  // [S5-03] Guarda el nombre, el apellido y el teléfono.
   const saveProfile = async () => {
     const e = validate();
     setErrors(e);
@@ -473,6 +476,7 @@ export default function Perfil({ navigation }) {
   };
 
   // ---------- FOTO DE PERFIL (expo-image-picker) ----------
+  // [S5-04] Cambiar la foto de perfil desde la galería.
   const pickImage = async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -538,6 +542,7 @@ export default function Perfil({ navigation }) {
     setShowConfirmar(false);
   };
 
+  // [S5-05] Cambiar la contraseña: primero confirma la contraseña actual.
   const changePassword = async () => {
     const e = {};
     ['actual', 'nueva', 'confirmar'].forEach((key) => {
@@ -592,6 +597,7 @@ export default function Perfil({ navigation }) {
 
   // ---------- CERRAR SESIÓN ----------
   // Navigation.js detecta el cambio de sesión y vuelve solo al Login
+  // [S5-06] Cerrar sesión desde Mi Perfil.
   const handleLogout = async () => {
     setLogoutOpen(false);
     try {

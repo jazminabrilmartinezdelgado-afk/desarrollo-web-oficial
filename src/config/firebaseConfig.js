@@ -11,6 +11,7 @@ import { Platform } from 'react-native';
 
 // ========== 1. CONFIGURACIÓN DE CREDENCIALES (Variables de Entorno) ==========
 // Cargamos las llaves secretas de Firebase desde el archivo .env de forma segura
+// [S1-06] Datos de conexión con Firebase. Se leen del archivo .env, no se escriben acá.
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
@@ -41,9 +42,11 @@ try {
 }
 
 // ========== 5. BASE DE DATOS FIRESTORE (usada por Proveedores) ==========
+// [S4-02] [S5-01] Base de datos Firestore: guarda las colecciones "proveedores" y "usuarios".
 const db = getFirestore(app);
 
 // ========== 6. VALIDACIÓN Y EXPORTACIÓN DE MÓDULOS ==========
+// [S1-07] Revisa que el .env tenga la clave de Firebase antes de usar la app.
 const isFirebaseConfigured = Boolean(firebaseConfig.apiKey);
 
 export { auth, db, isFirebaseConfigured };

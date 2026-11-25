@@ -30,6 +30,7 @@ yarn-error.*
 .DS_Store
 *.pem
 
+# [S1-08] El archivo .env tiene las claves de Firebase: no se sube a GitHub.
 # local env files
 .env
 .env*.local

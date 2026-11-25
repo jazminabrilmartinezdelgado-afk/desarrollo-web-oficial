@@ -29,6 +29,7 @@ import Sidebar from '../src/components/Sidebar';
 // Bordes seguros solo en iPhone (igual que el SafeAreaView anterior)
 const SAFE_EDGES = Platform.OS === 'ios' ? ['top', 'right', 'bottom', 'left'] : [];
 
+// [S5-09] Fotos del Inicio: la estantería de productos y el frente del local.
 const IMG_PRODUCTOS = require('../assets/productos.jpg');
 const IMG_LOCAL = require('../assets/local.jpg');
 
@@ -141,6 +142,7 @@ function HoverCard({ style, hoverStyle, children, onPress, grow }) {
 // =========================================================================
 // CINTA DE MARCAS EN MOVIMIENTO (marquee)
 // =========================================================================
+// [S5-09] Cinta con las marcas que se desplaza sola.
 function Marquee({ c }) {
   const x = useRef(new Animated.Value(0)).current;
   const [w, setW] = useState(0);
@@ -183,6 +185,7 @@ function Marquee({ c }) {
 // =========================================================================
 // PANTALLA HOME
 // =========================================================================
+// [S5-09] Pantalla principal (Inicio).
 export default function Home({ navigation }) {
   const { colors: c, isDark, toggleTheme } = useTheme();
   const { height: viewH } = useWindowDimensions();
@@ -190,6 +193,7 @@ export default function Home({ navigation }) {
   const wide = false;
   const twoCols = false;
 
+  // [S5-08] Indica si el menú lateral está abierto o cerrado.
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [profile, setProfile] = useState({ name: '', email: '', foto: '' });
   // El saludo se muestra recién cuando ya se sabe el nombre (así no aparece "Usuario" un instante)
@@ -246,6 +250,7 @@ export default function Home({ navigation }) {
 
   // ---------- ESTADÍSTICAS EN VIVO (colección proveedores) ----------
   useEffect(() => {
+    // [S5-10] Cuenta en vivo los proveedores activos y registrados.
     const unsub = onSnapshot(
       collection(db, 'proveedores'),
       (snap) => {
@@ -426,6 +431,7 @@ export default function Home({ navigation }) {
               {/* Barra superior dentro del hero */}
               <Animated.View style={[styles.heroTop, { opacity: heroAnim }]}>
                 {!wide && (
+                  // [S5-08] Botón ☰: abre el menú lateral.
                   <Pressable style={styles.glassBtn} onPress={() => setDrawerOpen(true)}>
                     <FontAwesome name="bars" size={17} color="#FFFFFF" />
                   </Pressable>
@@ -506,6 +512,7 @@ export default function Home({ navigation }) {
                   Bienvenido a Agroquímica Del Valle. Gestione proveedores e insumos desde un solo lugar.
                 </Text>
 
+                {/* [S4-12] Botón "Ver proveedores": lleva a la pantalla de proveedores. */}
                 <View style={styles.ctaRow}>
                   <Pressable
                     style={({ pressed }) => [styles.ctaMain, pressed && { opacity: 0.7 }]}

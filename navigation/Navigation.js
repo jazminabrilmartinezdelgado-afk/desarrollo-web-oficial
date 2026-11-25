@@ -7,6 +7,7 @@ import { auth, isFirebaseConfigured } from '../src/config/firebaseConfig';
 import { useTheme } from '../src/theme/ThemeContext';
 
 // Ancho máximo de la app: en la compu se ve como un celular centrado
+// [S5-13] Ancho máximo de un celular: en la compu la app se ve como un teléfono.
 export const APP_MAX_WIDTH = 480;
 // ---------- ARREGLO DE TEXTOS CORTADOS EN ANDROID ----------
 // En algunos celulares (Samsung, Xiaomi…) se cortaba la última palabra
@@ -52,6 +53,7 @@ const AUTH_OPTIONS = {
 
 // ---------- TRANSICIÓN ENTRE PANTALLAS: fundido + leve deslizamiento ----------
 const SMOOTH = Easing.bezier(0.22, 1, 0.36, 1);
+// [S5-12] Animación al cambiar de pantalla: la nueva aparece suave y sube un poco.
 const fadeSlide = ({ current }) => ({
   cardStyle: {
     opacity: current.progress,
@@ -141,6 +143,7 @@ export default function Navigation() {
     }
 
     // onAuthStateChanged detecta si el usuario está logueado o no
+    // [S1-11] Escucha si hay alguien con sesión iniciada para saber qué pantallas mostrar.
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       setLoading(false);
@@ -163,12 +166,13 @@ export default function Navigation() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <ActivityIndicator size="large" color="#1b4d3e" />
+        <ActivityIndicator size="large" color="#0d3827" />
       </View>
     );
   }
 
   // Solo entra a Home quien tiene sesión Y verificó su correo con el enlace
+  // [S4-15] Solo pasa a Inicio quien verificó su correo con el enlace.
   const isVerified = Boolean(user && user.emailVerified);
 
   // ---------- NAVEGACIÓN PRINCIPAL CONDICIONAL ----------
@@ -178,7 +182,7 @@ export default function Navigation() {
       <NavigationContainer>
         <Stack.Navigator //ruteo de la pantalla 
           screenOptions={{
-            headerStyle: { backgroundColor: '#1b4d3e' },
+            headerStyle: { backgroundColor: '#0d3827' },
             headerTintColor: '#ffffff',
             headerTitleStyle: { fontWeight: 'bold' },
             // En la web, React Navigation 7 trae las animaciones apagadas por defecto:
@@ -196,6 +200,7 @@ export default function Navigation() {
           }}
         >
           {isVerified ? (
+            // [S1-11] [S4-12] Inicio, Proveedores y Mi Perfil: solo con sesión iniciada.
             // Pantallas disponibles solo con sesión iniciada
             <>
               <Stack.Screen
@@ -215,6 +220,7 @@ export default function Navigation() {
               />
             </>
           ) : (
+            // [S2-07] [S3-06] Registro e inicio de sesión: las pantallas para entrar.
             // Pantallas de acceso (sin sesión)
             <>
               <Stack.Screen name="Login" component={Login} options={{ title: 'Iniciar sesión', ...AUTH_OPTIONS }} />
@@ -253,5 +259,5 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     ...(Platform.OS === 'web' ? { height: '100vh' } : {}),
   },
-  message: { textAlign: 'center', fontSize: 16, color: '#1b4d3e' },
+  message: { textAlign: 'center', fontSize: 16, color: '#0d3827' },
 });

@@ -30,6 +30,7 @@ export const LIGHT = {
   statusBar: 'dark-content',
 };
 
+// [S5-11] Colores del modo oscuro.
 export const DARK = {
   ...BRAND,
   greenMain: '#22C55E', // verde más brillante para que contraste en oscuro
@@ -58,6 +59,7 @@ const ThemeContext = createContext({
 });
 
 // Envuelve la app y recuerda la elección del usuario (AsyncStorage)
+// [S5-11] Modo oscuro: recuerda la elección en el celular y la comparte con todas las pantallas.
 export function ThemeProvider({ children }) {
   const [isDark, setIsDark] = useState(false);
 

@@ -64,15 +64,15 @@ const mapAuthError = (code) => {
     case 'auth/invalid-credential':
     case 'auth/wrong-password':
     case 'auth/user-not-found':
-      return 'Correo o contraseña incorrectos.';
+      return 'No pudimos iniciar sesión. Verifique su correo electrónico y contraseña.';
     case 'auth/too-many-requests':
       return 'Demasiados intentos. Inténtelo más tarde.';
     case 'auth/network-request-failed':
-      return 'Sin conexión. Revise su internet.';
+      return 'No pudimos conectarnos. Verifique su conexión a internet e inténtelo nuevamente.';
     case 'auth/user-disabled':
       return 'Esta cuenta fue deshabilitada.';
     default:
-      return 'Acceso inválido. Por favor, inténtelo otra vez.';
+      return 'No pudimos iniciar sesión. Inténtelo nuevamente.';
   }
 };
 
@@ -289,13 +289,14 @@ function ForgotModal({ initialEmail, onClose }) {
       onClose()
     );
 
+  // [S4-16] Recuperar contraseña: Firebase envía un enlace al correo.
   const send = async () => {
     if (!forgotEmail.trim()) {
       setMsg({ type: 'error', text: 'Ingrese su correo electrónico.' });
       return;
     }
     if (!EMAIL_REGEX.test(forgotEmail.trim())) {
-      setMsg({ type: 'error', text: 'Ingrese un correo electrónico válido.' });
+      setMsg({ type: 'error', text: 'Ingrese un correo electrónico válido. Ejemplo: nombre@gmail.com' });
       return;
     }
 
@@ -307,9 +308,9 @@ function ForgotModal({ initialEmail, onClose }) {
       setMsg({
         type: 'error',
         text:
-          error.code === 'auth/user-not-found'
-            ? 'No hay ningún usuario registrado con este correo.'
-            : 'No se pudo enviar el correo de recuperación.',
+          error.code === 'auth/network-request-failed'
+            ? 'No pudimos conectarnos. Verifique su conexión a internet e inténtelo nuevamente.'
+            : 'No pudimos enviar el correo de recuperación. Inténtelo nuevamente.',
       });
     } finally {
       setLoading(false);
@@ -389,11 +390,13 @@ function ForgotModal({ initialEmail, onClose }) {
 // =========================================================================
 // PANTALLA PRINCIPAL DE LOGIN
 // =========================================================================
+// [S3-01] Pantalla de inicio de sesión.
 export default function Login({ navigation }) {
   const { width, height } = useWindowDimensions();
   const compact = height < 700;
   const logoH = compact ? 92 : 124;
 
+  // [S3-03] Guardan lo que el usuario escribe en el correo y la contraseña.
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -523,6 +526,7 @@ export default function Login({ navigation }) {
   useEffect(() => {
     (async () => {
       try {
+        // [S4-17] Al abrir la pantalla, completa el correo que se había guardado.
         const saved = await AsyncStorage.getItem(REMEMBER_KEY);
         if (saved) {
           setEmail(saved);
@@ -532,6 +536,7 @@ export default function Login({ navigation }) {
     })();
   }, []);
 
+  // [S5-12] Animación de entrada: cada parte del formulario aparece y sube suave.
   const fadeUp = (v, distance = 24) => ({
     opacity: v,
     transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [distance, 0] }) }],
@@ -554,24 +559,30 @@ export default function Login({ navigation }) {
   const pressOut = () =>
     Animated.spring(buttonScale, { toValue: 1, friction: 4, useNativeDriver: true }).start();
 
+  // [S3-04] Lo que pasa al tocar "Iniciar sesión": revisa los datos y, si están bien, entra.
   const handleLogin = async () => {
     if (loading) return;
     setErrorMessage('');
 
-    if (!email.trim() || !password) {
-      showError('Por favor ingrese tanto el correo como la contraseña.');
+    if (!email.trim()) {
+      showError('Ingrese su correo electrónico.');
       return;
     }
     if (!EMAIL_REGEX.test(email.trim())) {
-      showError('Por favor ingrese un correo electrónico válido.');
+      showError('Ingrese un correo electrónico válido. Ejemplo: nombre@gmail.com');
+      return;
+    }
+    if (!password) {
+      showError('Ingrese su contraseña.');
       return;
     }
 
     setLoading(true);
     try {
+      // [S3-05] Firebase comprueba si el correo y la contraseña son correctos.
       const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
 
-      // Si todavía no verificó el correo: reenviar enlace y no dejar entrar
+      // [S4-15] Si todavía no verificó el correo: reenviar enlace y no dejar entrar
       if (!cred.user.emailVerified) {
         try {
           await sendEmailVerification(cred.user);
@@ -584,6 +595,7 @@ export default function Login({ navigation }) {
         return;
       }
 
+      // [S4-17] Si marcó "Recordar", guarda el correo en el celular (si no, lo borra).
       if (rememberMe) await AsyncStorage.setItem(REMEMBER_KEY, email.trim());
       else await AsyncStorage.removeItem(REMEMBER_KEY);
     } catch (error) {
@@ -715,6 +727,7 @@ export default function Login({ navigation }) {
                 )}
 
                 <Animated.View style={fadeUp(emailAnim)}>
+                  {/* [S3-02] Campo de correo electrónico. */}
                   <Text style={styles.label}>Correo electrónico</Text>
                   <Input
                     icon="envelope-o"
@@ -735,6 +748,7 @@ export default function Login({ navigation }) {
                 </Animated.View>
 
                 <Animated.View style={fadeUp(passAnim)}>
+                  {/* [S3-02] Campo de contraseña, con el ojo para mostrarla u ocultarla. */}
                   <Text style={styles.label}>Contraseña</Text>
                   <Input
                     icon="lock"

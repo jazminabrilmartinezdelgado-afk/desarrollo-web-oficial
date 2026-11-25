@@ -18,6 +18,7 @@ import Gradient from './Gradient';
 export const SIDEBAR_WIDTH = 270;
 
 // Módulos del sistema (antes estaban como tarjetas en Home)
+// [S5-07] Módulos del menú. Stock y Empleados todavía muestran "PRONTO".
 const MODULES = [
   { key: 'inicio', route: 'Home', label: 'Inicio', icon: 'home' },
   { key: 'proveedores', route: 'Proveedores', label: 'Gestionar Proveedores', icon: 'truck' },
@@ -94,6 +95,7 @@ function NavItem({ item, active, index, appear, onPress, c }) {
 // =========================================================================
 // INTERRUPTOR DE MODO OSCURO (animado)
 // =========================================================================
+// [S5-11] Interruptor de modo claro / oscuro.
 function ThemeSwitch() {
   const { colors: c, isDark, toggleTheme } = useTheme();
   const knob = useRef(new Animated.Value(isDark ? 1 : 0)).current;
@@ -126,6 +128,7 @@ function ThemeSwitch() {
 // =========================================================================
 // CONTENIDO DEL SIDEBAR
 // =========================================================================
+// [S5-07] Menú lateral: logo horizontal, módulos, modo oscuro y perfil.
 function SidebarContent({ active, profile, onNavigate, onLogout, open, onClose }) {
   const { colors: c } = useTheme();
   const appear = useRef(new Animated.Value(0)).current;
@@ -221,7 +224,7 @@ function SidebarContent({ active, profile, onNavigate, onLogout, open, onClose }
         </Pressable>
 
         <Pressable onPress={() => setLogoutOpen(true)} style={styles.logout}>
-          <FontAwesome name="sign-out" size={15} color="#EF4444" />
+          <FontAwesome name="sign-out" size={15} color="#DC2626" />
           <Text style={styles.logoutText}>Cerrar sesión</Text>
         </Pressable>
       </View>
@@ -248,6 +251,7 @@ function SidebarContent({ active, profile, onNavigate, onLogout, open, onClose }
                 style={[styles.confirmBtn, { backgroundColor: '#DC2626' }]}
                 onPress={() => {
                   setLogoutOpen(false);
+                  // [S5-06] Cerrar sesión desde el menú lateral.
                   onLogout();
                 }}
               >
@@ -264,6 +268,7 @@ function SidebarContent({ active, profile, onNavigate, onLogout, open, onClose }
 // =========================================================================
 // SIDEBAR: fijo en pantallas anchas, deslizable (drawer) en celulares
 // =========================================================================
+// [S5-08] El menú se desliza desde la izquierda al abrirlo y se cierra con la X.
 export default function Sidebar({ permanent, visible, onClose, ...props }) {
   const { colors: c } = useTheme();
   const slide = useRef(new Animated.Value(0)).current;
@@ -384,7 +389,7 @@ const styles = StyleSheet.create({
   itemIcon: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
   itemText: { flex: 1, fontSize: 13.5, fontWeight: '600' },
   soon: { backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  soonText: { color: '#B45309', fontSize: 8, fontWeight: '800', letterSpacing: 0.5 },
+  soonText: { color: '#B45309', fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
 
   themeRow: {
     flexDirection: 'row',
@@ -406,7 +411,7 @@ const styles = StyleSheet.create({
   profileName: { fontSize: 13.5, fontWeight: '800' },
   profileLink: { fontSize: 11.5, fontWeight: '700', marginTop: 1 },
   logout: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, paddingHorizontal: 14 },
-  logoutText: { color: '#EF4444', fontWeight: '700', fontSize: 13 },
+  logoutText: { color: '#DC2626', fontWeight: '700', fontSize: 13 },
 
   // Confirmar cierre de sesión
   confirmBackdrop: {

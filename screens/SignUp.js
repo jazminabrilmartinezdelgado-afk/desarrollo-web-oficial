@@ -337,7 +337,7 @@ function Leaf({ size = 60, color = GREEN_MAIN, rotate = 0, style, delay = 0 }) {
 // COMPONENTE DE CAMPOS
 // ============================================================
 
-// [S4-19] Campo reutilizable: etiqueta, ícono, texto, ojito y error
+// [S2-02] Campo reutilizable: etiqueta, ícono, texto, ojito y error
 function Field({
   label,
   icon,
@@ -715,6 +715,7 @@ export default function SignUp({ navigation }) {
 
   // Registro con Firebase
 
+  // [S2-05] Lo que pasa al tocar "Registrarse": valida todo y crea la cuenta.
   const handleSignUp = async () => {
     // Evita doble envío
     if (loading) return;
@@ -731,6 +732,7 @@ export default function SignUp({ navigation }) {
 
     try {
       // 1) Crear el usuario
+      // [S2-06] Firebase crea la cuenta con el correo y la contraseña.
       const credential = await createUserWithEmailAndPassword(
         auth,
         cleanEmail,
@@ -760,12 +762,12 @@ export default function SignUp({ navigation }) {
     } catch (error) {
       console.error('Error de registro:', error.code, error.message);
 
-      let errorMessage = 'Hubo un problema al registrar el usuario.';
+      let errorMessage = 'No pudimos crear su cuenta. Inténtelo nuevamente.';
 
       // true: el error va debajo del campo
       let inlineOnly = false;
 
-      // [S4-19] Errores de Firebase en mensajes claros
+      // [S2-06] Errores de Firebase en mensajes claros
       switch (error.code) {
         case 'auth/email-already-in-use':
           errorMessage =
@@ -783,7 +785,7 @@ export default function SignUp({ navigation }) {
           break;
 
         case 'auth/network-request-failed':
-          errorMessage = 'Error de conexión. Por favor, intente más tarde.';
+          errorMessage = 'No pudimos conectarnos. Verifique su conexión a internet e inténtelo nuevamente.';
           break;
 
         case 'auth/too-many-requests':
@@ -792,17 +794,17 @@ export default function SignUp({ navigation }) {
           break;
 
         case 'auth/operation-not-allowed':
-          errorMessage = 'El registro con correo no está habilitado en Firebase.';
+          errorMessage = 'No pudimos crear su cuenta en este momento. Inténtelo más tarde.';
           break;
 
         case 'auth/invalid-api-key':
           errorMessage =
-            'La clave API de Firebase no es válida. Revise su configuración.';
+            'No pudimos crear su cuenta en este momento. Inténtelo más tarde.';
           break;
 
         default:
-          // Error desconocido: se agrega el código
-          errorMessage += `\n\nCódigo: ${error.code || 'desconocido'}`;
+          // Error desconocido: se deja el mensaje general (el código queda en la consola)
+          break;
       }
 
       if (!inlineOnly) {
@@ -944,7 +946,7 @@ export default function SignUp({ navigation }) {
                   Crear cuenta
                 </Text>
 
-                <Text style={styles.subtitle}>Regístrese en Agroquímica del Valle</Text>
+                <Text style={styles.subtitle}>Regístrese en Agroquímica Del Valle</Text>
 
                 <Animated.View
                   style={[
@@ -1310,7 +1312,7 @@ export default function SignUp({ navigation }) {
         </View>
       </Modal>
 
-      {/* [S4-19] Ventana de error */}
+      {/* [S2-06] Ventana de error */}
       <Modal
         animationType="fade"
         transparent

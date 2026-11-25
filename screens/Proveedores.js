@@ -46,6 +46,7 @@ const GREEN_MAIN = '#008A3B';
 const GOLD_YELLOW = '#CAB118';
 const DARK = '#111827';
 const PAGE_BG = '#F3F7F4';
+// [S4-02] Colección de Firestore donde se guardan los proveedores.
 const COLLECTION = 'proveedores';
 
 // Rol que se muestra en la barra superior
@@ -86,6 +87,7 @@ const PHONE_PREFIX = '+54 9 387 ';
 
 // Devuelve el error de UN campo del formulario ('' si está bien).
 // Los mensajes son los mismos que en la pantalla de registro.
+// [S4-10] Reglas de cada campo: obligatorios, correo Gmail/Hotmail y teléfono de Salta.
 const getFieldError = (key, form) => {
   switch (key) {
     case 'nombre':
@@ -291,6 +293,7 @@ function Field({ label, icon, error, onBlur: onFieldBlur, inputRef, ...props }) 
 // =========================================================================
 // TARJETA DE PROVEEDOR
 // =========================================================================
+// [S4-03] Tarjeta de cada proveedor en la lista.
 function ProveedorCard({ item, index, onEdit, onToggle }) {
   const styles = useStyles();
   const { colors: c } = useTheme();
@@ -442,6 +445,7 @@ function ProveedorCard({ item, index, onEdit, onToggle }) {
 // =========================================================================
 // MODAL DE FORMULARIO (Bottom Sheet)
 // =========================================================================
+// [S4-05] Formulario para registrar o editar un proveedor.
 function FormModal({ proveedor, onClose, onSaved }) {
   const styles = useStyles();
   const { colors: c } = useTheme();
@@ -536,6 +540,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
     ]).start();
 
   // ---------- IMAGEN (expo-image-picker) ----------
+  // [S4-01] [S4-05] Elegir la foto del proveedor desde la galería (expo-image-picker).
   const pickImage = async () => {
     try {
       const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -588,7 +593,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
 
   const set = (key) => (value) => {
 
-    // [S4-17] Bloquea números y símbolos
+    // [S4-10] Bloquea números y símbolos
     if (key === 'nombre' || key === 'apellido') {
       if (value !== '' && !ONLY_LETTERS_REGEX.test(value)) return;
     }
@@ -644,12 +649,14 @@ function FormModal({ proveedor, onClose, onSaved }) {
       };
 
       if (editing) {
+        // [S4-07] Editar: actualiza los datos del proveedor que ya existe.
         await updateDoc(doc(db, COLLECTION, proveedor.id), {
           ...data,
           fechaActualizacion: serverTimestamp(),
         });
         onSaved('Proveedor actualizado correctamente');
       } else {
+        // [S4-06] Registrar: crea un proveedor nuevo en Firestore.
         await addDoc(collection(db, COLLECTION), {
           ...data,
           fechaAlta: serverTimestamp(),
@@ -959,6 +966,7 @@ function FormModal({ proveedor, onClose, onSaved }) {
 // =========================================================================
 // MODAL DE CONFIRMACIÓN DE BAJA
 // =========================================================================
+// [S4-08] Ventana que pide confirmar antes de dar de baja.
 function ConfirmModal({ proveedor, onCancel, onConfirm, loading }) {
   const styles = useStyles();
   const { colors: c } = useTheme();
@@ -1019,6 +1027,7 @@ function ConfirmModal({ proveedor, onCancel, onConfirm, loading }) {
 // =========================================================================
 // PANTALLA PRINCIPAL
 // =========================================================================
+// [S4-03] Pantalla de proveedores.
 export default function Proveedores({ navigation }) {
   const styles = useStyles();
   const { colors: c } = useTheme();
@@ -1130,6 +1139,7 @@ export default function Proveedores({ navigation }) {
   }, []);
 
   useEffect(() => {
+    // [S4-04] Lista en tiempo real: se actualiza sola cuando alguien agrega o cambia un proveedor.
     const q = query(collection(db, COLLECTION), orderBy('nombre'));
     const unsub = onSnapshot(
       q,
@@ -1146,6 +1156,7 @@ export default function Proveedores({ navigation }) {
     return unsub;
   }, [showToast]);
 
+  // [S4-11] Buscador y filtro por estado (todos, activos, inactivos).
   const lista = useMemo(() => {
     const term = search.trim().toLowerCase();
     return proveedores.filter((p) => {
@@ -1176,6 +1187,7 @@ export default function Proveedores({ navigation }) {
     setFormVisible(true);
   }, []);
 
+  // [S4-09] Activar: vuelve a poner como activo a un proveedor dado de baja.
   const handleToggle = useCallback(
     async (p) => {
       if (isActivo(p)) {
@@ -1196,6 +1208,7 @@ export default function Proveedores({ navigation }) {
     [showToast]
   );
 
+  // [S4-08] Dar de baja: no se borra, se marca como inactivo para no perder sus datos.
   const confirmBaja = async () => {
     if (!toConfirm) return;
     setBajaLoading(true);
